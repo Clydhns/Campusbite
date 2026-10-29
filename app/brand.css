@@ -1,0 +1,45 @@
+a.cb-brand-logo.cb-site-brand,a.cb-brand-logo {
+    display:inline-flex;
+    align-items:center;
+    gap:12px;
+    margin:0;
+    padding:0;
+    background:transparent;
+    color:#E63946;
+    font-family:'Nunito',sans-serif;
+    text-decoration:none;
+    white-space:nowrap;
+    line-height:1.2;
+}
+.cb-brand-logo .cb-brand-badge {
+    display:grid;
+    place-items:center;
+    flex-shrink:0;
+    width:50px;
+    height:50px;
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    border:1px solid #F1D5BF;
+    border-radius:17px;
+    background:linear-gradient(135deg,#FFF8F0,#ffe4cc);
+    color:#bf2634;
+    font-size:15px;
+    font-weight:900;
+    letter-spacing:-.5px;
+}
+.cb-brand-logo .cb-brand-name {
+    display:inline;
+    margin:0;
+    font-size:28px;
+    font-weight:900;
+    letter-spacing:-.8px;
+    color:#E63946;
+}
+.cb-brand-logo:focus-visible { outline:3px solid #a61f2e; outline-offset:5px; border-radius:17px; }
+.cb-brand-tagline { display:block; margin:8px 0 0 62px; font-size:10px; font-weight:900; letter-spacing:2px; color:#684632; }
+@media(max-width:640px) {
+    .cb-brand-logo .cb-brand-badge { width:42px; height:42px; border-radius:14px; font-size:13px; }
+    .cb-brand-logo .cb-brand-name { font-size:23px; }
+    .cb-brand-tagline { margin-left:54px; }
+}

@@ -1,0 +1,11 @@
+# Application PHP is bundled into the function, never the static output directory.
+app/tests/
+supabase/
+tools/node_modules/
+tools/schema.test.mjs
+tools/runtime.test.mjs
+tools/php-integration.php
+tools/package*.json
+private-data/
+.env*
+README.md

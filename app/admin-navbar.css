@@ -1,0 +1,61 @@
+/* Extend the CampusBite pill navigation without changing admin page content. */
+nav.cb-admin-navbar .cb-admin-brand-group {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-width: 0;
+}
+nav.cb-admin-navbar .cb-admin-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+nav.cb-admin-navbar .cb-admin-brand-mark {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #f1d5bf;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fff8f0, #ffe4cc);
+    color: #a61f2e;
+    font-size: 13px;
+    letter-spacing: -0.5px;
+}
+nav.cb-admin-navbar .cb-admin-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    padding-left: 20px;
+    border-left: 1px solid #f1d5bf;
+}
+nav.cb-admin-navbar .cb-admin-mode {
+    color: #a61f2e;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+nav.cb-admin-navbar .cb-admin-caption {
+    max-width: 230px;
+    overflow-wrap: anywhere;
+    color: #684632;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+@media (max-width: 1100px) {
+    nav.navbar.cb-admin-navbar { flex-direction: column; align-items: stretch; gap: 18px; }
+    nav.cb-admin-navbar .cb-site-nav-pill { align-self: center; }
+}
+@media (max-width: 640px) {
+    nav.cb-admin-navbar .cb-admin-brand-group { width: 100%; gap: 12px; }
+    nav.cb-admin-navbar .cb-admin-identity { padding-left: 12px; }
+    nav.cb-admin-navbar .cb-admin-brand { font-size: 20px; gap: 8px; }
+    nav.cb-admin-navbar .cb-site-nav-pill { align-self: stretch; }
+}
+@media (max-width: 380px) {
+    nav.cb-admin-navbar .cb-admin-brand-group { flex-wrap: wrap; }
+    nav.cb-admin-navbar .cb-admin-identity { padding-left: 0; border-left: 0; }
+}

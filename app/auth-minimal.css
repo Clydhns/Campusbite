@@ -1,0 +1,38 @@
+/* Quiet, image-free authentication views; shared form behavior stays unchanged. */
+body { padding:24px 20px; background:linear-gradient(145deg,#fff8f0,#fffaf7 65%,#fff1e6); }
+.auth-shell { max-width:1120px; border-radius:24px; border-color:#f1dfcf; box-shadow:0 12px 40px #3b2a2009; }
+.food-panel { padding:42px; min-height:650px; background:linear-gradient(150deg,#fff4e8,#ffeddb); }
+.food-panel::before { display:none; }
+.food-panel-copy { padding:36px 0; }
+.food-panel h2 { font-size:40px; line-height:1.2; letter-spacing:-1.2px; margin:14px 0; }
+.food-panel p { font-size:16px; line-height:1.7; margin:0 0 22px; }
+.food-eyebrow,.form-eyebrow { font-size:11px; letter-spacing:1.8px; }
+.food-register { min-height:48px; padding:12px 17px; border-color:#e7c6ac; background:#fffaf6; color:#a61f2e; font-size:15px; }
+.food-register:hover { background:white; border-color:#bf2634; }
+.food-panel-footer { font-size:11px; font-weight:600; color:#796554; }
+.auth-forms { padding:40px; }
+h1 { font-size:32px; letter-spacing:-.7px; margin:10px 0; }
+.description { font-size:15px; margin-bottom:22px; }
+label { font-size:14px; margin:14px 0 7px; }
+input { min-height:50px; padding:12px 14px; font-size:16px; background:#fffdfb; }
+input:focus { box-shadow:0 0 0 3px #e6394612; }
+.login-button { min-height:52px; margin-top:22px; padding:13px; font-size:16px; font-weight:800; box-shadow:none; }
+.login-button:hover { transform:none; }
+.registration-grid { column-gap:16px; }
+.register { display:none; }
+.auth-brand .cb-brand-tagline { font-size:9px; letter-spacing:1.5px; }
+@media(max-width:800px) {
+  body { align-items:flex-start; padding:20px 14px; }
+  .auth-shell { max-width:540px; }
+  .food-panel { min-height:0; padding:24px; }
+  .food-panel-copy { padding:16px 0 0; }
+  .food-panel-copy .food-eyebrow,.food-panel-copy h2,.food-panel-copy p { display:none; }
+  .food-register { padding:8px 0; border:0; background:transparent; min-height:40px; }
+  .food-register:hover { background:transparent; }
+  .auth-forms { padding:26px 24px; }
+}
+@media(max-width:440px) {
+  .food-panel { padding:20px; }
+  .auth-forms { padding:24px 20px; }
+  h1 { font-size:28px; }
+}

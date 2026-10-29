@@ -1,0 +1,31 @@
+.staff-order-notice {
+    position: fixed;
+    z-index: 200;
+    right: 24px;
+    bottom: 24px;
+    max-width: min(460px, calc(100vw - 48px));
+    padding: 16px 20px;
+    border: 1px solid #b8d9bf;
+    border-radius: 14px;
+    background: #edf8ef;
+    color: #205d2e;
+    box-shadow: 0 8px 28px #3b2a2020;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.staff-order-notice[data-state="error"] {
+    border-color: #efb8bc;
+    background: #fff0f1;
+    color: #a12230;
+}
+
+[data-staff-order-action] button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+[data-staff-order][tabindex="-1"]:focus-visible {
+    outline: 3px solid #bf2634;
+    outline-offset: 3px;
+}

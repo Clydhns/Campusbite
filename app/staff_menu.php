@@ -1,0 +1,168 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) session_start();
+header('Cache-Control: private, no-store, max-age=0');
+ob_start(); require_once __DIR__ . '/config/connection.php'; ob_end_clean();
+require_once __DIR__ . '/config/stores.php';
+$store = cbStaffStore($pdo);
+$token = cbCsrf('store_csrf');
+$error = '';
+$photoChange = ['new'=>null,'old'=>null];
+$qrChange = ['new'=>null,'old'=>null];
+$saveMessage = 'Your store has been updated.';
+$success = $_SESSION['store_flash'] ?? '';
+unset($_SESSION['store_flash']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        if (empty($_POST)) throw new RuntimeException('Upload too large. Choose a photo up to 3 MB and try again.');
+        if (!cbCheckCsrf('store_csrf')) throw new RuntimeException('Invalid request. Refresh and try again.');
+        $pdo->beginTransaction();
+        if (($_POST['action'] ?? '') === 'save_store') {
+            $name = trim((string) ($_POST['store_name'] ?? ''));
+            $description = trim((string) ($_POST['store_description'] ?? ''));
+            $acceptGcash = isset($_POST['payment_options_present'])
+                ? isset($_POST['accept_gcash'])
+                : (is_string($_POST['gcash_number'] ?? null) && trim($_POST['gcash_number']) !== '');
+            $gcash = $acceptGcash && is_string($_POST['gcash_number'] ?? null) ? trim($_POST['gcash_number']) : '';
+            if (!preg_match('/^.{1,100}$/us', $name) || !preg_match('/^.{0,255}$/us', $description)) throw new RuntimeException('Enter a store name (up to 100 characters) and description (up to 255).');
+            if ($acceptGcash && !preg_match('/^09[0-9]{9}$/', $gcash)) throw new RuntimeException('To accept GCash, enter an 11-digit receiving number starting with 09.');
+            $qrFile = $_FILES['gcash_qr'] ?? [];
+            $hasQrUpload = ($qrFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+            $removeQr = isset($_POST['remove_gcash_qr']);
+            if ($acceptGcash && $gcash !== ($store['gcash_number'] ?? '') && cbPaymentQrUrl($store['gcash_qr_path'] ?? null) && !$hasQrUpload && !$removeQr) {
+                throw new RuntimeException('Replace or remove your existing QR image when changing the GCash receiving number.');
+            }
+            $stmt = $pdo->prepare('UPDATE stores SET store_name=?,description=?,gcash_number=?,is_open=? WHERE store_id=? AND staff_user_id=?');
+            $stmt->execute([$name,$description ?: null,$gcash ?: null,isset($_POST['is_open']) ? 1 : 0,$store['store_id'],$_SESSION['user_id']]);
+            if (!$acceptGcash && $hasQrUpload) {
+                throw new RuntimeException('Turn on GCash payments before uploading a QR image.');
+            }
+            $qrChange = cbSaveStorePaymentQr($pdo, (int) $store['store_id'], (int) $_SESSION['user_id'], $qrFile, $removeQr);
+        } elseif (($_POST['action'] ?? '') === 'save_food') {
+            $itemId = cbSaveFood($pdo,(int) $store['store_id'],$_POST);
+            $photoChange = cbSaveFoodPhoto($pdo,(int) $store['store_id'],$itemId,$_FILES['food_photo'] ?? [],isset($_POST['remove_photo']));
+        } elseif (($_POST['action'] ?? '') === 'delete_food') {
+            $itemId = filter_var($_POST['item_id'] ?? null,FILTER_VALIDATE_INT);
+            $photoChange['old'] = cbDeleteFood($pdo,(int) $store['store_id'],(int) $itemId);
+            $saveMessage = 'Food removed from your store.';
+        } else {
+            throw new RuntimeException('Unknown menu action.');
+        }
+        $pdo->commit();
+        cbDeleteFoodPhoto($photoChange['old']);
+        cbDeletePaymentQr($qrChange['old']);
+        $_SESSION['store_flash'] = $saveMessage;
+        header('Location: staff_menu.php');
+        exit;
+    } catch (PDOException $exception) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        cbDeleteFoodPhoto($photoChange['new']);
+        cbDeletePaymentQr($qrChange['new']);
+        error_log($exception->getMessage());
+        $error = ($_POST['action'] ?? '') === 'delete_food'
+            ? 'Unable to remove this food right now. Refresh and try again.'
+            : (($_POST['action'] ?? '') === 'save_store'
+                ? 'Unable to save your store settings. Please try again.'
+                : 'Unable to save. Food names must be unique within your store.');
+    } catch (RuntimeException $exception) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        cbDeleteFoodPhoto($photoChange['new']);
+        cbDeletePaymentQr($qrChange['new']);
+        $error = $exception->getMessage();
+    }
+}
+$categories = $pdo->query('SELECT * FROM categories ORDER BY category_name')->fetchAll();
+$stmt = $pdo->prepare('SELECT m.*,c.category_name,d.quantity_prepared,d.quantity_remaining FROM menu_items m JOIN categories c ON c.category_id=m.category_id LEFT JOIN daily_menu d ON d.item_id=m.item_id AND d.menu_date=CURRENT_DATE WHERE m.store_id=? AND m.archived_at IS NULL ORDER BY m.item_name');
+$stmt->execute([$store['store_id']]);
+$foods = $stmt->fetchAll();
+$edit = ['item_id'=>0,'item_name'=>'','description'=>'','price'=>'','category_id'=>'','is_available'=>1,'quantity_prepared'=>0];
+$editId = (int) ($_GET['edit'] ?? 0);
+if ($editId) {
+    $found = false;
+    foreach ($foods as $food) if ((int) $food['item_id'] === $editId) { $edit = $food; $found = true; }
+    if (!$found) $error = 'That food does not belong to your store.';
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_food' && $error !== '') {
+    foreach (['item_id','item_name','description','price','category_id'] as $field) $edit[$field] = is_scalar($_POST[$field] ?? null) ? $_POST[$field] : '';
+    $edit['quantity_prepared'] = is_scalar($_POST['stock'] ?? null) ? $_POST['stock'] : 0;
+    $edit['is_available'] = isset($_POST['is_available']);
+}
+$acceptGcash = !empty($store['gcash_number']);
+$gcashNumber = (string) ($store['gcash_number'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_store' && $error !== '') {
+    $acceptGcash = isset($_POST['accept_gcash']);
+    $gcashNumber = is_string($_POST['gcash_number'] ?? null) ? $_POST['gcash_number'] : '';
+}
+?>
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Store - CampusBite</title>
+<link rel="stylesheet" href="student-pages.css?v=1"><link rel="stylesheet" href="student-navbar.css?v=1"><link rel="stylesheet" href="stores.css?v=<?= (int) filemtime(__DIR__ . '/stores.css') ?>">
+<link rel="stylesheet" href="staff-navbar.css?v=<?= (int) filemtime(__DIR__ . '/staff-navbar.css') ?>">
+</head><body class="cb-student" data-staff-workspace="<?= (int) $_SESSION['user_id'] ?>-<?= (int) $store['store_id'] ?>">
+<?php require __DIR__ . '/components/staff-navbar.php'; ?>
+<?php if ($error): ?><div class="error-message cb-staff-notice" data-staff-notice data-auto-dismiss role="alert"><span><?= cbEscape($error) ?></span><button type="button" data-dismiss-notice aria-label="Dismiss error message">&times;</button></div><?php endif; ?>
+<?php if ($success): ?><div class="success-message cb-staff-notice" data-staff-notice data-auto-dismiss role="status" aria-live="polite"><span><?= cbEscape($success) ?></span><button type="button" data-dismiss-notice aria-label="Dismiss success message">&times;</button></div><?php endif; ?>
+<main class="container">
+<header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p>Publish your food and set today's stock. Only you can manage this store.</p></header>
+<div class="cb-store-workspace">
+<section class="cb-store-panel"><h2>Store details</h2>
+<form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
+<label for="store-name">Store name</label><input id="store-name" name="store_name" maxlength="100" required value="<?= cbEscape($store['store_name']) ?>">
+<label for="store-description">Description</label><textarea id="store-description" name="store_description" maxlength="255"><?= cbEscape($store['description']) ?></textarea>
+<fieldset class="cb-store-payments" id="store-payments">
+<legend>Payment methods</legend>
+<input type="hidden" name="payment_options_present" value="1">
+<p class="cb-store-help">Choose which payment options customers can use at checkout.</p>
+<div class="cb-payment-method"><div><strong>Cash</strong><p>Customers pay at the canteen.</p></div><span class="cb-payment-accepted">Always accepted</span></div>
+<label class="cb-store-check cb-payment-gcash" for="accept-gcash"><input type="checkbox" id="accept-gcash" name="accept_gcash" value="1" <?= $acceptGcash ? 'checked' : '' ?> aria-controls="store-gcash-details"><span><strong>Accept GCash payments</strong><span class="cb-payment-caption">Let customers choose Cash or GCash.</span></span></label>
+<div id="store-gcash-details">
+<label for="gcash-number">GCash receiving number</label><input id="gcash-number" name="gcash_number" type="tel" inputmode="numeric" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" aria-describedby="store-gcash-help" <?= $acceptGcash ? 'required' : '' ?> value="<?= cbEscape($gcashNumber) ?>">
+<p id="store-gcash-help" class="cb-store-help">Use an 11-digit number starting with 09. Customers pay this number using their GCash app. Verify each payment in your GCash account before confirming it.</p>
+<label for="gcash-qr">GCash QR image (optional)</label>
+<input id="gcash-qr" name="gcash_qr" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="gcash-qr-help gcash-qr-message">
+<p id="gcash-qr-help" class="cb-store-help">Upload your GCash QR as a JPEG, PNG, or WebP image, up to 3 MB. Use the QR for the receiving number above. Replace or remove the QR if you change that number. Customers can scan or save it at checkout.</p>
+<?php $currentQr = cbPaymentQrUrl($store['gcash_qr_path'] ?? null); ?>
+<img id="gcash-qr-preview" class="cb-gcash-qr-preview" src="<?= cbEscape($currentQr ?: 'data:,') ?>" alt="Your store's GCash QR image" width="280" height="280" <?= $currentQr ? '' : 'hidden' ?>>
+<p id="gcash-qr-message" class="cb-store-help" role="status"></p>
+<?php if ($currentQr): ?><label class="cb-store-check"><input id="remove-gcash-qr" type="checkbox" name="remove_gcash_qr"> Remove current QR image</label><?php endif; ?>
+</div>
+<p class="cb-store-help" id="store-payment-summary" role="status"><?= $acceptGcash ? 'Cash and GCash are available after saving these settings.' : 'Cash is available. Turn on GCash and enter your receiving number to offer both.' ?></p>
+</fieldset>
+<label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Store open for new orders</label><button class="btn">Save store</button>
+</form></section>
+<section class="cb-store-panel"><h2><?= $edit['item_id'] ? 'Edit food' : 'Add food' ?></h2>
+<form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_food"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $edit['item_id'] ?>">
+<label for="food-name">Food name</label><input id="food-name" name="item_name" maxlength="100" required value="<?= cbEscape($edit['item_name']) ?>">
+<label for="food-description">Description</label><textarea id="food-description" name="description" maxlength="255"><?= cbEscape($edit['description']) ?></textarea>
+<label for="food-photo">Food photo (optional)</label>
+<input id="food-photo" name="food_photo" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="food-photo-help">
+<p id="food-photo-help" class="cb-store-help">Upload from your computer: JPEG, PNG, or WebP, up to 3 MB. Leave blank to keep the existing photo.</p>
+<?php $currentPhoto = cbFoodPhotoUrl($edit['image_path'] ?? null); ?>
+<img id="food-photo-preview" class="cb-food-photo cb-food-photo-preview" src="<?= cbEscape($currentPhoto ?: 'data:,') ?>" alt="Food photo preview" <?= $currentPhoto ? '' : 'hidden' ?>>
+<p id="food-photo-message" class="cb-store-help" role="status"></p>
+<?php if ($currentPhoto): ?><label class="cb-store-check"><input type="checkbox" name="remove_photo"> Remove current photo (a new upload replaces it)</label><?php endif; ?>
+<div class="cb-store-fields"><div><label for="food-category">Category</label><select id="food-category" name="category_id" required><option value="">Choose category</option><?php foreach ($categories as $category): ?><option value="<?= (int) $category['category_id'] ?>" <?= (int) $edit['category_id'] === (int) $category['category_id'] ? 'selected' : '' ?>><?= cbEscape($category['category_name']) ?></option><?php endforeach; ?></select></div>
+<div><label for="food-price">Price (PHP)</label><input id="food-price" type="number" name="price" min="0.01" max="999999.99" step="0.01" required value="<?= cbEscape($edit['price']) ?>"></div></div>
+<label for="food-stock">Total servings prepared today</label><input id="food-stock" type="number" name="stock" min="0" max="65535" required value="<?= (int) ($edit['quantity_prepared'] ?? 0) ?>">
+<p class="cb-store-help">Sold or reserved servings stay deducted when you change stock. Set stock each day to accept new orders.</p>
+<label class="cb-store-check"><input type="checkbox" name="is_available" <?= $edit['is_available'] ? 'checked' : '' ?>> Food available</label>
+<div class="cb-store-actions"><button class="btn" type="submit"><?= $edit['item_id'] ? 'Save food' : 'Add food' ?></button></div>
+</form></section></div>
+<section class="cb-store-section"><h2>Your menu</h2><div class="cb-store-grid">
+<?php foreach ($foods as $food): ?><article class="cb-store-panel">
+<?php if ($photo = cbFoodPhotoUrl($food['image_path'])): ?><img class="cb-food-photo" src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($food['item_name']) ?>" loading="lazy" width="640" height="400"><?php endif; ?>
+<span class="cb-store-kicker"><?= cbEscape($food['category_name']) ?></span><h3><?= cbEscape($food['item_name']) ?></h3><p><?= cbEscape($food['description']) ?></p><strong>PHP <?= number_format((float) $food['price'],2) ?></strong><p><?= $food['is_available'] ? 'Available' : 'Hidden from ordering' ?> &middot; <?= $food['quantity_remaining'] === null ? "Set today's stock" : (int) $food['quantity_remaining'] . ' remaining today' ?></p>
+<div class="cb-store-actions"><a class="btn btn-secondary" href="staff_menu.php?edit=<?= (int) $food['item_id'] ?>">Edit food / stock</a>
+<form method="POST" action="staff_menu.php" data-delete-food data-food-name="<?= cbEscape($food['item_name']) ?>">
+<input type="hidden" name="action" value="delete_food"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $food['item_id'] ?>">
+<button class="btn cb-food-delete" type="submit" data-delete-food-button disabled aria-label="Remove <?= cbEscape($food['item_name']) ?>">Remove food</button>
+</form></div></article><?php endforeach; ?>
+<?php if (!$foods): ?><p>Your store is ready. Add your first food above.</p><?php endif; ?>
+</div></section></main>
+<dialog id="food-delete-dialog" class="cb-food-delete-dialog" aria-labelledby="food-delete-title" aria-describedby="food-delete-message">
+<h2 id="food-delete-title">Remove this food?</h2>
+<p id="food-delete-message">Remove <strong id="food-delete-name"></strong> from your menu? It will no longer appear for sale. This cannot be undone here.</p>
+<p class="cb-store-help">Food linked to orders is archived to keep order history safe. Food with no orders is deleted with its photo and stock records.</p>
+<div class="cb-store-actions"><button type="button" class="btn btn-secondary" id="food-delete-cancel" autofocus>Keep food</button><button type="button" class="btn cb-food-delete" id="food-delete-confirm">Remove food</button></div>
+</dialog>
+<script src="food-photo-preview.js?v=<?= (int) filemtime(__DIR__ . '/food-photo-preview.js') ?>" defer></script><script src="food-delete.js?v=<?= (int) filemtime(__DIR__ . '/food-delete.js') ?>" defer></script><script src="staff-menu-ux.js?v=<?= (int) filemtime(__DIR__ . '/staff-menu-ux.js') ?>" defer></script><script src="staff-payments.js?v=<?= (int) filemtime(__DIR__ . '/staff-payments.js') ?>" defer></script></body></html>

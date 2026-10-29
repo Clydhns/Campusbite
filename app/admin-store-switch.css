@@ -1,0 +1,20 @@
+.cb-admin-store-status {
+    min-height: 1.5em;
+    margin: 0 0 24px;
+    color: #684632;
+    font-size: 14px;
+}
+.cb-admin-store-status[data-state="error"] { color: #a61f2e; }
+[data-admin-store][aria-current="true"] {
+    border-color: #e63946;
+    background: #fff0ef;
+    box-shadow: 0 0 0 2px #e6394615;
+}
+#admin-store-results { transition: opacity 140ms ease; }
+#admin-store-results[aria-busy="true"] { opacity: .55; }
+#admin-store-results.is-updated { animation: cb-admin-store-enter 180ms ease-out; }
+@keyframes cb-admin-store-enter { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    #admin-store-results { transition: none; }
+    #admin-store-results.is-updated { animation: none; }
+}

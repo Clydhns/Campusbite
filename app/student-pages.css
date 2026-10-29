@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+body.cb-student {
+  --tomato: #E63946;
+  --tomato-dark: #bf2634;
+  --tomato-light: #fff0ef;
+  --orange: #F4A261;
+  --orange-dark: #8b4e20;
+  --orange-light: #fff0df;
+  --brown: #3B2A20;
+  --brown-light: #684632;
+  --gray: #796554;
+  --border: #F1D5BF;
+  --green-light: #eef8f0;
+  --green-dark: #245a33;
+  --radius-lg: 22px;
+  --radius-xl: 22px;
+  --shadow-sm: 0 8px 24px #7e452009;
+  --shadow-md: 0 18px 36px #7e452014;
+  margin: 0;
+  min-height: 100vh;
+  color: var(--brown);
+  background: radial-gradient(ellipse at 8% 5%, #ffe9d4, transparent 40%), linear-gradient(135deg, #FFF8F0, #fff5ea);
+  font-family: 'Nunito', sans-serif;
+  line-height: 1.5;
+}
+.cb-student *, .cb-student *::before, .cb-student *::after { box-sizing: border-box; }
+.cb-student :where(button,input,select,textarea) { font-family: inherit; }
+.cb-student :where(a,button,input,select,textarea):focus-visible { outline: 3px solid #a61f2e; outline-offset: 4px; }
+.cb-student :where(.container,.dashboard-container) { width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 32px 48px; }
+.cb-student :where(.cart-header,.page-title,.cb-hero) { text-align: center; padding: 64px 12px 54px; margin: 0; }
+.cb-student .cb-page-eyebrow, .cb-student .cb-hero-kicker { color: #8b4e20; font-size: 11px; font-weight: 900; letter-spacing: 2.5px; }
+.cb-student :where(.cart-header,.page-title,.cb-hero) h1 { max-width: 760px; margin: 20px auto 18px; font-size: clamp(36px,5vw,62px); line-height: 1.1; letter-spacing: -2.5px; font-weight: 900; color: var(--brown); }
+.cb-student .cb-hero h1 span { color: var(--tomato); }
+.cb-student .cb-hero-kicker { margin-bottom: 0; }
+.cb-student :where(.cart-header,.page-title,.cb-hero) p { max-width: 690px; margin: 0 auto; color: var(--gray); font-size: 16px; line-height: 1.7; }
+.cb-student :where(.btn,.menu-button,.update-button,.btn-campus,.cancel-button,.keep-order-button,.confirm-cancel-button) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 18px; border: 1px solid var(--tomato); border-radius: 12px;
+  background: var(--tomato); color: white; font-size: 13px; font-weight: 800;
+  line-height: 1.5; text-decoration: none; cursor: pointer;
+  transition: background .2s, border-color .2s, box-shadow .2s;
+}
+.cb-student :where(.btn,.menu-button,.update-button,.btn-campus,.confirm-cancel-button):hover { background: var(--tomato-dark); border-color: var(--tomato-dark); color: white; box-shadow: 0 5px 16px #e6394618; }
+.cb-student :where(.btn-secondary,.cancel-button,.keep-order-button) { background: white; color: #a61f2e; border-color: var(--border); }
+.cb-student :where(.btn-secondary,.cancel-button,.keep-order-button):hover { background: #fff0df; border-color: var(--orange); color: #a61f2e; }
+.cb-student :where(input,select,textarea) { padding: 10px 12px; color: var(--brown); background: #fffcf9; border: 1px solid var(--border); border-radius: 12px; font-size: 14px; transition: border-color .2s, box-shadow .2s; }
+.cb-student :where(input,select,textarea):focus { border-color: var(--tomato); box-shadow: 0 0 0 3px #e6394612; }
+.cb-student :where(button,input):disabled { cursor: not-allowed; color: #7a726b; background: #f1ece7; border-color: #e5dbd2; box-shadow: none; }
+.cb-student :where(.success,.error,.success-message,.error-message) { margin-bottom: 22px; padding: 16px 20px; border: 1px solid #c8e1ce; border-radius: 14px; background: var(--green-light); color: var(--green-dark); font-size: 14px; line-height: 1.7; }
+.cb-student :where(.error,.error-message) { border-color: #f4c3bd; background: var(--tomato-light); color: #a61f2e; }
+.cb-student :where(.empty-cart,.empty-orders,.empty-box) { padding: 56px 24px; background: white; border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow-sm); text-align: center; }
+.cb-student :where(.empty-cart,.empty-orders,.empty-box) h2 { color: var(--brown); margin: 12px 0; }
+.cb-student :where(.empty-cart,.empty-orders) p { color: var(--gray); max-width: 480px; margin: 0 auto 24px; font-size: 14px; line-height: 1.7; }
+.cb-student .footer { text-align: center; color: var(--gray); font-size: 12px; padding-top: 32px; }
+
+/* Cart keeps its existing forms and summary, with a roomier layout. */
+.cb-student .cart-layout { grid-template-columns: minmax(0,1fr) 320px; gap: 24px; }
+.cb-student :where(.cart-list,.summary-card) { border-color: var(--border); border-radius: 22px; box-shadow: var(--shadow-sm); }
+.cb-student .cart-list-header { background: #fffcf9; padding: 20px 24px; }
+.cb-student .cart-item { grid-template-columns: 72px minmax(0,1fr) 90px 90px; gap: 16px; padding: 24px; }
+.cb-student .cart-food-icon { width: 72px; height: 72px; background: linear-gradient(135deg,#ffe5cf,#fff1e3); }
+.cb-student .cart-food-name { font-size: 17px; }
+.cb-student .cart-food-description { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.cb-student .cart-price, .cb-student .summary-total span:last-child { color: var(--tomato-dark); }
+.cb-student .cart-quantity-label { font-size: 12px; }
+.cb-student .update-button { padding: 8px; font-size: 12px; }
+.cb-student .remove-button { padding: 6px 0; background: transparent; color: #a61f2e; cursor: pointer; font-family: inherit; }
+.cb-student .summary-card { top: 24px; padding: 24px; }
+.cb-student .summary-card h2 { margin-top: 0; }
+.cb-student .summary-row { font-size: 14px; }
+
+/* Order status stays readable and distinct, rather than color-only. */
+.cb-student .order-card { margin-bottom: 24px; border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow-sm); }
+.cb-student .order-header { background: #fffcf9; border-color: var(--border); padding: 20px 24px; }
+.cb-student .order-number { color: var(--brown); font-size: 18px; }
+.cb-student .order-date, .cb-student .item-quantity, .cb-student .detail-label, .cb-student .total-label { color: var(--gray); }
+.cb-student .order-content { padding: 24px; }
+.cb-student .order-item { border-color: #f7e6d8; padding: 14px 0; }
+.cb-student .item-name { overflow-wrap: anywhere; }
+.cb-student .order-details { border-color: var(--border); gap: 12px; }
+.cb-student .detail-box { background: #fff5ea; border: 1px solid #f7e6d8; border-radius: 14px; padding: 16px; }
+.cb-student .order-footer { background: #fffcf9; border-color: var(--border); padding: 20px 24px; flex-wrap: wrap; }
+.cb-student .total-amount { color: var(--tomato-dark); font-weight: 900; font-size: 25px; }
+.cb-student :where(.status-badge,.status) { border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 800; }
+.cb-student :where(.status-pending,.status-preparing) { background: #fff0df; color: #794521; }
+.cb-student :where(.status-ready,.status-completed) { background: var(--green-light); color: var(--green-dark); }
+.cb-student .status-cancelled { background: var(--tomato-light); color: #a61f2e; }
+.cb-student .cancel-box { border-color: var(--tomato); border-radius: 12px; color: #a61f2e; }
+.cb-student .cancel-confirmation-overlay { background: #3b2a2070; }
+.cb-student .cancel-confirmation-dialog { border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow-md); }
+.cb-student .cancel-confirmation-dialog h2 { color: var(--brown); }
+.cb-student .cancel-confirmation-dialog p { color: var(--gray); }
+.cb-student .cancel-confirmation-actions button { border-radius: 12px; font-family: inherit; }
+
+/* Keep the dashboard's existing content, aligned with the menu card system. */
+.cb-student :where(.stat-card,.quick-card,.food-card,.recent-card,.cb-tracking-card) { border-radius: 22px; border-color: var(--border); box-shadow: var(--shadow-sm); }
+.cb-student .quick-card { text-decoration: none; }
+.cb-student .quick-card:hover { background: #fffcf9; border-color: var(--orange); }
+.cb-student .food-emoji { background: radial-gradient(circle at 50% 60%,#fffaf5 0 30%,transparent 31%),linear-gradient(135deg,#ffe5cf,#fff1e3); }
+.cb-student .recent-table-wrapper { overflow-x: auto; }
+.cb-student .recent-table { min-width: 620px; }
+.cb-student :where(.container,.dashboard-container) { animation: cb-page-enter .35s ease-out both; }
+@keyframes cb-page-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1050px) {
+  .cb-student .cart-layout { grid-template-columns: minmax(0,1fr); }
+  .cb-student .summary-card { position: static; }
+}
+@media (max-width: 750px) {
+  .cb-student .cart-item { grid-template-columns: 64px minmax(0,1fr); }
+  .cb-student .cart-food-icon { width: 64px; height: 64px; }
+  .cb-student .cart-quantity-form { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .cb-student .cart-item-total { text-align: right; }
+  .cb-student .order-footer { align-items: stretch; flex-direction: column; }
+  .cb-student .cancel-form { width: 100%; flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+  .cb-student :where(.container,.dashboard-container) { padding: 0 16px 32px; }
+  .cb-student :where(.cart-header,.page-title,.cb-hero) { padding: 40px 0; }
+  .cb-student :where(.cart-header,.page-title,.cb-hero) h1 { letter-spacing: -1.5px; }
+  .cb-student :where(.cart-header,.page-title,.cb-hero) p { font-size: 14px; }
+  .cb-student .order-details { grid-template-columns: minmax(0,1fr); }
+  .cb-student :where(.order-header,.order-content,.order-footer,.cart-item,.cart-list-header) { padding: 20px; }
+  .cb-student .cancel-reason-input { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cb-student :where(.container,.dashboard-container) { animation: none; }
+  .cb-student * { transition: none !important; }
+}

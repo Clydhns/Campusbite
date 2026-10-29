@@ -1,0 +1,74 @@
+(() => {
+    const content = document.getElementById('profile-content');
+    const user = document.body.dataset.profileUser;
+    if (!content || !user) return;
+    let pending = false;
+    let noticeTimer;
+    function updateSave() {
+        const form = content.querySelector('#student-profile-form');
+        if (!form) return;
+        const baseline = JSON.parse(form.dataset.profileBaseline);
+        const dirty = Object.entries(baseline).some(([name,value]) => form.elements.namedItem(name).value.trim() !== String(value ?? ''));
+        form.querySelector('#profile-save').disabled = pending || !dirty;
+        form.querySelector('#profile-save-state').textContent = pending ? 'Saving your changes...' : (dirty ? 'You have unsaved changes.' : 'Your details are up to date.');
+    }
+    function notice() {
+        clearTimeout(noticeTimer);
+        const box = content.querySelector('[data-profile-notice]');
+        if (!box) return;
+        box.focus({preventScroll:true});
+        if (box.dataset.profileNotice === 'success') noticeTimer = setTimeout(() => { box.classList.add('is-leaving'); setTimeout(() => box.remove(),220); },5000);
+    }
+    content.addEventListener('input', updateSave);
+    content.addEventListener('click', event => {
+        const button = event.target.closest('[data-profile-password-toggle]');
+        if (!button || pending) return;
+        const input = content.querySelector('#current-password');
+        const showing = input.type === 'password';
+        input.type = showing ? 'text' : 'password';
+        button.textContent = showing ? 'Hide' : 'Show';
+        button.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+        button.setAttribute('aria-pressed', String(showing));
+    });
+    content.addEventListener('submit', async event => {
+        const form = event.target;
+        if (form.id !== 'student-profile-form') return;
+        event.preventDefault();
+        if (pending || form.querySelector('#profile-save').disabled) return;
+        const data = new FormData(form);
+        pending = true;
+        updateSave();
+        const inputs = Array.from(form.querySelectorAll('input:not([type=hidden])'));
+        inputs.forEach(input => { input.readOnly=true; });
+        content.setAttribute('aria-busy','true');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(),15000);
+        try {
+            const response = await fetch('profile.php',{method:'POST',body:data,credentials:'same-origin',cache:'no-store',signal:controller.signal});
+            if (!response.ok) throw new Error('Profile request failed');
+            const page = new DOMParser().parseFromString(await response.text(),'text/html');
+            if (page.body.dataset.profileUser !== user) { location.assign('login.php'); return; }
+            const incoming = page.getElementById('profile-content');
+            if (!incoming || !incoming.querySelector('#student-profile-form')) throw new Error('Incomplete profile response');
+            const top = window.scrollY;
+            content.style.minHeight=content.getBoundingClientRect().height+'px';
+            content.replaceChildren(...Array.from(incoming.childNodes));
+            window.scrollTo(0,top);
+            notice();
+            requestAnimationFrame(() => { content.style.minHeight=''; });
+        } catch (error) {
+            content.querySelector('[data-profile-notice]')?.remove();
+            const box=document.createElement('div');
+            box.className='error-message'; box.dataset.profileNotice='error'; box.tabIndex=-1; box.setAttribute('role','alert');
+            box.textContent='We could not confirm the save. Reload your profile to check the latest details before retrying.';
+            const link=document.createElement('a'); link.href='profile.php'; link.textContent=' Reload profile'; box.append(link);
+            content.prepend(box); notice();
+        } finally {
+            clearTimeout(timeout); pending=false;
+            inputs.forEach(input => { input.readOnly=false; });
+            content.setAttribute('aria-busy','false');
+            updateSave();
+        }
+    });
+    updateSave(); notice();
+})();

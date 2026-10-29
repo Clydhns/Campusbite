@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.vercel/
+public/
+**/node_modules/
+**/vendor/
+**/uploads/
+private-data/
+*.dump
+*.sql.gz
+*.csv
+*.bak
+*.log
+*.pem
+*.key
+app/generate_hash.php

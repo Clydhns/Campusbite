@@ -1,0 +1,6 @@
+{
+  "name": "campusbite-cloud",
+  "private": true,
+  "scripts": { "build": "node tools/build-public.mjs" },
+  "engines": { "node": "22.x" }
+}

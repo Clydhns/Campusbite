@@ -1,0 +1,16 @@
+.payment-confirmation { width:min(480px,calc(100% - 32px)); max-height:calc(100dvh - 48px); overflow:auto; box-sizing:border-box; margin:auto; padding:26px; border:1px solid #f1d5bf; border-radius:20px; background:white; color:#3b2a20; font-family:inherit; box-shadow:0 24px 80px #3b2a2040; }
+.payment-confirmation::backdrop { background:#3b2a2070; }
+.payment-confirmation h2 { margin:0 0 12px; font-size:23px; line-height:1.3; }
+.payment-confirmation p { margin:0 0 18px; color:#684632; font-size:14px; line-height:1.7; }
+.payment-confirmation-details { margin:0 0 20px; padding:14px; border-radius:12px; background:#fff8f0; }
+.payment-confirmation-details > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; margin:8px 0; }
+.payment-confirmation-details dt { color:#796554; font-size:13px; }
+.payment-confirmation-details dd { max-width:100%; margin:0; font-size:14px; font-weight:800; overflow-wrap:anywhere; }
+.payment-confirmation [hidden] { display:none !important; }
+.payment-confirmation label { display:block; margin:0 0 8px; font-size:13px; font-weight:800; }
+.payment-confirmation textarea { box-sizing:border-box; width:100%; padding:12px; border:1px solid #f1d5bf; border-radius:10px; font:inherit; resize:vertical; }
+.payment-confirmation-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:22px; }
+.payment-confirmation-actions button { min-height:44px; padding:12px 18px; border:1px solid #f1d5bf; border-radius:10px; background:#fff0df; color:#684632; font:inherit; font-weight:800; cursor:pointer; }
+.payment-confirmation-actions [data-payment-confirm-proceed] { border-color:#e63946; background:#e63946; color:white; }
+.payment-confirmation :focus-visible { outline:3px solid #a61f2e; outline-offset:3px; }
+.cb-commerce .action-button.reject-payment-button { border:1px solid #a61f2e; background:#fff0ef; color:#a61f2e; }

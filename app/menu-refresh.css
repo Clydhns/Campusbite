@@ -1,0 +1,55 @@
+/* Menu-only refinements leave dashboard, staff, and checkout styling intact. */
+.cb-menu .menu-page-header { position:relative; text-align:left; padding:32px 0 28px; }
+.cb-menu .menu-page-header h1 { max-width:none; margin:8px 0 12px; font-size:clamp(32px,4vw,48px); letter-spacing:-1.8px; }
+.cb-menu .menu-page-header h1 span { color:var(--tomato); }
+.cb-menu .menu-page-header p { max-width:760px; font-size:14px; }
+.cb-menu .cb-menu-kitchens { margin-bottom:22px; }
+.cb-menu .kitchens-heading { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.cb-menu .kitchens-heading h2 { margin:0; font-size:17px; font-weight:900; }
+.cb-menu .kitchens-heading > span { font-size:12px; color:var(--gray); }
+.cb-menu .kitchen-options { display:flex; gap:12px; padding:4px 4px 8px; margin:0 -4px; overflow-x:auto; scrollbar-width:thin; }
+.cb-menu .kitchen-tab { position:relative; display:flex; align-items:center; gap:12px; flex:1 0 270px; max-width:420px; padding:12px; border-radius:18px; background:#fffdfb; box-shadow:0 4px 16px #7e452006; }
+.cb-menu .kitchen-tab:hover { transform:none; background:#fff3e8; }
+.cb-menu .kitchen-tab.is-selected { background:#fff0ef; border-color:var(--tomato); box-shadow:0 0 0 1px var(--tomato); }
+.cb-menu .kitchen-tab img,.cb-menu .kitchen-all-icon { width:66px; height:66px; flex-shrink:0; border-radius:13px; object-fit:cover; background:linear-gradient(140deg,#ffe1bf,#fff5e9); }
+.cb-menu .kitchen-all-icon { display:grid; place-items:center; font-size:27px; color:#a61f2e; }
+.cb-menu .kitchen-all { flex:0 0 215px; }
+.cb-menu .kitchen-tab-copy { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.cb-menu .kitchen-tab-copy strong { font-size:15px; line-height:1.3; font-weight:900; overflow-wrap:anywhere; }
+.cb-menu .kitchen-tab-copy small { font-size:12px; color:var(--gray); }
+.cb-menu .kitchen-tab .kitchen-tab-check { margin-left:auto; width:20px; height:20px; flex-shrink:0; border-radius:50%; display:grid; place-items:center; color:white; background:var(--tomato); visibility:hidden; font-size:12px; }
+.cb-menu .kitchen-tab.is-selected .kitchen-tab-check { visibility:visible; }
+.cb-menu .toolbar { margin-bottom:12px; gap:12px; }
+.cb-menu .search-box { max-width:560px; background:white; padding:13px 16px; }
+.cb-menu .cart-button { min-height:46px; }
+.cb-menu .categories { margin-bottom:24px; background:#fff3e8; padding:4px; }
+.cb-menu .category-btn { padding:9px 17px; min-height:42px; }
+.cb-menu .category-btn.active { color:white; background:var(--tomato-dark); }
+.cb-menu .category-btn.active:hover { background:#a61f2e; color:white; }
+.cb-menu .menu-results-heading { gap:16px; padding-top:20px; border-top:1px solid var(--border); margin-bottom:20px; }
+.cb-menu .menu-results-heading .menu-eyebrow { font-size:10px; color:var(--orange-dark); }
+.cb-menu .menu-results-heading h2 { margin:5px 0 4px; font-size:25px; line-height:1.3; }
+.cb-menu .menu-results-heading p { margin:0; color:var(--gray); font-size:13px; max-width:650px; overflow-wrap:anywhere; }
+.cb-menu .menu-available-count { padding:8px 12px; border-radius:999px; background:var(--green-light); color:var(--green-dark); font-size:12px; font-weight:800; white-space:nowrap; }
+.cb-menu .food-image { height:210px; background:#fff6ee; }
+.cb-menu .food-image .cb-food-photo { object-fit:contain; padding:10px; }
+.cb-menu .food-info { padding:18px; }
+.cb-menu .food-info h3 { font-size:20px; margin-top:7px; }
+.cb-menu .cb-food-store { margin:8px 0 0; letter-spacing:.4px; font-size:10px; }
+.cb-menu .description { min-height:40px; margin-bottom:12px; line-height:1.5; }
+.cb-menu .price { font-size:23px; }
+.cb-menu .stock { margin-bottom:14px; }
+.cb-menu .cb-store-switch-status { margin:0 0 12px; font-size:12px; }
+@media(max-width:640px) {
+  .cb-menu .menu-page-header { padding:22px 0; }
+  .cb-menu .menu-page-header h1 { letter-spacing:-1px; }
+  .cb-menu .kitchens-heading { align-items:flex-start; flex-direction:column; gap:3px; }
+  .cb-menu .kitchen-tab { flex-basis:250px; }
+  .cb-menu .kitchen-all { flex-basis:200px; }
+  .cb-menu .toolbar { flex-wrap:nowrap; }
+  .cb-menu .search-box { flex:1 1 0; }
+  .cb-menu .cart-button { flex-shrink:0; padding:12px; font-size:12px; }
+  .cb-menu .menu-results-heading h2 { font-size:22px; }
+  .cb-menu .menu-grid { gap:18px; }
+  .cb-menu .food-image { height:230px; }
+}
