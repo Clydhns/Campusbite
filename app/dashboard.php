@@ -107,6 +107,9 @@ $_SESSION["last_name"] = $user["last_name"];
 $_SESSION["email"] = $user["email"];
 $_SESSION["role_name"] = $user["role_name"];
 
+// Rendering below only reads session data; let navigation proceed during live-menu queries.
+session_write_close();
+
 /*
 |--------------------------------------------------------------------------
 | CART COUNT

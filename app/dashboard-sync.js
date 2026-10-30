@@ -20,20 +20,22 @@
     let timer;
     let busy = false;
     let failures = 0;
+    let controller;
+    let leaving = false;
     const pageUrl = new URL('dashboard.php', window.location.href);
 
     function schedule() {
         clearTimeout(timer);
-        if (!document.hidden) {
+        if (!leaving && !document.hidden) {
             timer = setTimeout(refresh, Math.min(3000 * (failures + 1), 30000));
         }
     }
 
     async function refresh() {
-        if (busy || document.hidden) return;
+        if (busy || leaving || document.hidden) return;
         busy = true;
         if (refreshButton) refreshButton.disabled = true;
-        const controller = new AbortController();
+        controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
         try {
             const response = await fetch(pageUrl, {
@@ -74,12 +76,14 @@
             if (checkedAt) checkedAt.textContent = 'Last checked: ' + new Date().toLocaleTimeString();
             failures = 0;
         } catch (error) {
+            if (leaving || document.hidden) return;
             failures += 1;
             showSyncState('error');
             status.textContent = 'Live updates are temporarily unavailable. Retrying automatically.';
         } finally {
             clearTimeout(timeout);
             busy = false;
+            controller = null;
             if (refreshButton) refreshButton.disabled = false;
             schedule();
         }
@@ -87,10 +91,30 @@
 
     document.addEventListener('visibilitychange', () => {
         clearTimeout(timer);
-        if (!document.hidden) refresh();
+        if (document.hidden) controller?.abort();
+        else if (!leaving) refresh();
+    });
+    function pauseForNavigation() {
+        leaving = true;
+        clearTimeout(timer);
+        controller?.abort();
+    }
+    document.addEventListener('click', event => {
+        if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const link = event.target.closest?.('.cb-site-navbar a[href]');
+        if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+        const target = new URL(link.href, window.location.href);
+        if (target.origin === window.location.origin && (target.pathname !== window.location.pathname || target.search !== window.location.search)) {
+            pauseForNavigation();
+        }
+    });
+    window.addEventListener('pagehide', pauseForNavigation);
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) { leaving = false; schedule(); }
     });
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
     if (refreshButton) refreshButton.addEventListener('click', refresh);
-    refresh();
+    // The server just rendered current data; don't immediately fetch the same page again.
+    schedule();
 })();
