@@ -10,6 +10,7 @@ $allowed=['index.php','login.php','register.php','logout.php','dashboard.php','m
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
+header("Content-Security-Policy: form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'");
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cache-Control: private, no-store');
 if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET',['GET','HEAD','POST'],true)) {

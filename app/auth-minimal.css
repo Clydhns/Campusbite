@@ -15,6 +15,7 @@ h1 { font-size:32px; letter-spacing:-.7px; margin:10px 0; }
 .description { font-size:15px; margin-bottom:22px; }
 .auth-project-note { margin:0 0 20px; padding:12px 14px; border:1px solid #f1dfcf; border-radius:12px; background:#fff8f0; color:#5e4636; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
 .auth-project-note strong { font-weight:800; }
+.auth-project-note a { color:#a61f2e; text-underline-offset:3px; }
 .auth-password-help { margin:10px 0 0; color:#685344; font-size:13px; line-height:1.6; }
 label { font-size:14px; margin:14px 0 7px; }
 input { min-height:50px; padding:12px 14px; font-size:16px; background:#fffdfb; }

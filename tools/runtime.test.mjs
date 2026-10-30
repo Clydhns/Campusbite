@@ -29,7 +29,7 @@ function client() {
     for(const item of response.headers.getSetCookie()) if(item.startsWith('campusbite_session=')) cookie=item.split(';')[0];
     const html=await response.text();
     assert.ok(!/Fatal error:|Warning:|SQLSTATE\[|Dashboard error:|Unable to load user information/.test(html),'No PHP/SQL error in response');
-    return {status:response.status,html,location:response.headers.get('location')};
+    return {status:response.status,html,location:response.headers.get('location'),csp:response.headers.get('content-security-policy')};
   };
 }
 async function signin(request,email) {
@@ -67,6 +67,15 @@ try {
     catch { if(i===59) throw new Error('PHP test server did not start: '+logs); await new Promise(resolve=>setTimeout(resolve,100)); }
   }
   const anon=client();
+  const introduction=await anon('');
+  check(introduction.status===200 && introduction.html.includes('An independent student project')
+    && introduction.html.includes('id="data-use"') && !introduction.html.includes('<form'),
+    'Public home explains project identity and data use without requesting credentials');
+  const publicLogin=await anon('login.php');
+  check(publicLogin.csp?.includes("form-action 'self'") && publicLogin.csp?.includes("base-uri 'self'")
+    && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
+    && publicLogin.html.includes('index.php#data-use'),
+    'Authentication pages link to project details and restrict external form submissions and framing');
   for(const route of ['generate_hash.php','app/config/connection.php','uploads/receipts/'+ 'a'.repeat(32)+'.png','.env','tests/admin-account-request.php']) {
     assert.equal((await anon(route)).status,404);
   }
