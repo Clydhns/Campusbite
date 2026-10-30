@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const source=path.join(root,'app'), output=path.join(root,'public');
 const allowed=new Set(['.css','.js','.png','.jpg','.jpeg','.webp','.svg','.ico','.woff','.woff2']);
+// Ownership verification must be public, without allowing arbitrary HTML files.
+const verificationFiles=new Set(['google122e550ade36cc3a.html']);
 await mkdir(output,{recursive:true});
 let count=0;
 async function copy(dir,relative='') {
@@ -15,7 +17,8 @@ async function copy(dir,relative='') {
       if ((relative==='' && entry.name==='assets') || relative==='assets' || relative.startsWith('assets'+path.sep)) {
         await copy(path.join(dir,entry.name),rel);
       }
-    } else if (entry.isFile() && allowed.has(path.extname(entry.name).toLowerCase())) {
+    } else if (entry.isFile() && (allowed.has(path.extname(entry.name).toLowerCase())
+      || (relative==='' && verificationFiles.has(entry.name)))) {
       const dest=path.join(output,rel);
       await mkdir(path.dirname(dest),{recursive:true});
       await copyFile(path.join(dir,entry.name),dest); count++;
@@ -29,7 +32,8 @@ async function verify(dir) {
     const file=path.join(dir,entry.name);
     if (entry.isDirectory()) await verify(file);
     else {
-      if (!allowed.has(path.extname(entry.name).toLowerCase())) throw new Error('Unsafe file in static output: '+entry.name);
+      if (!allowed.has(path.extname(entry.name).toLowerCase())
+        && !(dir===output && verificationFiles.has(entry.name))) throw new Error('Unsafe file in static output: '+entry.name);
       if (path.extname(entry.name).toLowerCase()==='.php') throw new Error('PHP source in static output');
     }
   }
