@@ -63,7 +63,7 @@ function authEscape($value): string {
         <section class="auth-form-view" id="register-view" <?= !$signup ? "hidden" : "" ?> aria-labelledby="register-title">
             <span class="form-eyebrow">JOIN THE TABLE</span>
             <h1 id="register-title" tabindex="-1">Create your account</h1>
-            <p class="description">Your campus favorites are one step closer.</p>
+            <p class="description">Create your account and go straight to your student dashboard.</p>
             <p class="auth-project-note"><strong>Independent student project.</strong> CampusBite is a campus food-ordering project, not an official school portal. <a href="index.php#data-use">About the project and data use</a>.</p>
             <?php if ($signup && $error !== ""): ?>
                 <div class="error" role="alert"><?= authEscape($error) ?></div>

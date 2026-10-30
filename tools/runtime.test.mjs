@@ -21,15 +21,15 @@ const token=(html,name='csrf_token')=>{
   const match=html.match(new RegExp(`name="${escaped}"[^>]*value="([^"]+)"`));
   assert.ok(match,'CSRF token present'); return match[1];
 };
-function client() {
-  let cookie='';
+function client(initialCookie='') {
+  let cookie=initialCookie;
   return async (route,body) => {
     const response=await fetch(base+'/'+route,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(20000),
       headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:body?new URLSearchParams(body):undefined});
     for(const item of response.headers.getSetCookie()) if(item.startsWith('campusbite_session=')) cookie=item.split(';')[0];
     const html=await response.text();
     assert.ok(!/Fatal error:|Warning:|SQLSTATE\[|Dashboard error:|Unable to load user information/.test(html),'No PHP/SQL error in response');
-    return {status:response.status,html,location:response.headers.get('location'),csp:response.headers.get('content-security-policy')};
+    return {status:response.status,html,location:response.headers.get('location'),csp:response.headers.get('content-security-policy'),sessionCookie:cookie};
   };
 }
 async function signin(request,email) {
@@ -214,8 +214,38 @@ try {
   await admin('admin_users.php',{csrf_token:token(adminUsers.html),action:'create_staff',id_number:'FIXTURE-NEWSTAFF',first_name:'New',last_name:'Fixture',email:'newstaff@example.invalid',password:'Fixture-Only-Password9!',confirm_password:'Fixture-Only-Password9!',contact_number:''});
   check((await db.query("SELECT s.store_id FROM public.stores s JOIN public.users u ON u.user_id=s.staff_user_id WHERE u.email='newstaff@example.invalid'")).rows.length===1,'Creating staff also creates its own store using RETURNING');
   const registration=client(); const register=await registration('register.php');
-  await registration('register.php',{csrf_token:token(register.html),id_number:'FIXTURE-NEWSTUDENT',first_name:'New',last_name:'Student',email:'newstudent@example.invalid',contact_number:'',grade_section:'',password:'Fixture-Only-Password9!',confirm_password:'Fixture-Only-Password9!'});
-  check((await db.query("SELECT user_id FROM public.users WHERE email='newstudent@example.invalid' AND role_id=3")).rows.length===1,'Registration validates CSRF and creates only a student account');
+  const signupPassword='Fixture-Only-Password9!';
+  const signup={csrf_token:token(register.html),id_number:'FIXTURE-NEWSTUDENT',first_name:'New',last_name:'Student',email:'newstudent@example.invalid',contact_number:'',grade_section:'',password:signupPassword,confirm_password:signupPassword};
+  const beforeSignup=Number((await db.query('SELECT COUNT(*) AS n FROM public.users')).rows[0].n);
+  const badCsrf=await registration('register.php',{...signup,csrf_token:'invalid'});
+  const mismatch=await registration('register.php',{...signup,confirm_password:'different-password'});
+  const duplicateEmail=await registration('register.php',{...signup,email:'STUDENT@example.invalid'});
+  const duplicateId=await registration('register.php',{...signup,id_number:'FIXTURE-STUDENT'});
+  check([badCsrf,mismatch,duplicateEmail,duplicateId].every(result=>result.status===200)
+    && badCsrf.html.includes('Your form expired') && mismatch.html.includes('Passwords do not match')
+    && duplicateEmail.html.includes('already registered') && duplicateId.html.includes('already registered')
+    && Number((await db.query('SELECT COUNT(*) AS n FROM public.users')).rows[0].n)===beforeSignup
+    && (await registration('dashboard.php')).status===302,
+    'Invalid CSRF, mismatched passwords and duplicate accounts cannot register or authenticate a visitor');
+  const beforeSession=await registration('register.php');
+  const signedUp=await registration('register.php',{...signup,csrf_token:token(beforeSession.html),role_id:'1',role_name:'Administrator'});
+  const newStudent=(await db.query("SELECT user_id,role_id,is_active,password_hash FROM public.users WHERE email='newstudent@example.invalid'")).rows[0];
+  check(signedUp.status===303 && signedUp.location==='dashboard.php' && Number(newStudent.role_id)===3 && Number(newStudent.is_active)===1
+    && newStudent.password_hash!==signupPassword,
+    'Successful registration creates only an active student with a hashed password and redirects directly to the dashboard');
+  check(signedUp.sessionCookie!==beforeSession.sessionCookie
+    && (await client(beforeSession.sessionCookie)('dashboard.php')).status===302,
+    'Automatic sign-in rotates the session ID and leaves the old anonymous cookie unauthenticated');
+  const welcome=await registration('dashboard.php');
+  check(welcome.status===200 && welcome.html.includes('data-dashboard-user="'+newStudent.user_id+'"')
+    && (await registration('profile.php')).html.includes('newstudent@example.invalid'),
+    'The newly registered student can open their own dashboard and profile without logging in again');
+  check((await registration('admin_dashboard.php')).status===302 && (await registration('staff_dashboard.php')).status===302,
+    'Posted administrator role fields cannot grant privileged access during automatic sign-in');
+  await registration('logout.php');
+  const returning=await registration('login.php');
+  const signedBackIn=await registration('login.php',{csrf_token:token(returning.html),email:'newstudent@example.invalid',password:signupPassword});
+  check(signedBackIn.status===302 && signedBackIn.location==='dashboard.php','The new account still supports normal password login after logout');
   const separateCarts=client(); await signin(separateCarts,'student@example.invalid');
   for(const store of [1,2]) {
     const page=await separateCarts('menu.php?store='+store);
@@ -247,6 +277,13 @@ try {
   check((await db.query('SELECT COUNT(*) AS n FROM public.orders')).rows[0].n===orderCount
     && afterFailure.html.includes('data-cart-store="1"') && afterFailure.html.includes('data-cart-store="2"'),
     'A stock failure rolls back the selected checkout and preserves both store carts');
+  const switchSignup=await separateCarts('register.php');
+  await separateCarts('register.php',{...signup,csrf_token:token(switchSignup.html),id_number:'FIXTURE-SWITCH',email:'switch@example.invalid',first_name:'Switch'});
+  const switchedCart=await separateCarts('cart.php');
+  check(switchedCart.status===200 && switchedCart.html.includes('Your cart is empty for now')
+    && !switchedCart.html.includes('data-cart-store="1"') && !switchedCart.html.includes('data-cart-store="2"')
+    && (await separateCarts('profile.php')).html.includes('switch@example.invalid'),
+    'A newly created account cannot inherit another signed-in account\'s cart or identity');
   const profile=await student('profile.php');
   await student('profile.php',{csrf_token:token(profile.html),first_name:'Updated',last_name:'STUDENT',email:'student@example.invalid',contact_number:'',grade_section:'',current_password:password});
   check((await db.query("SELECT first_name FROM public.users WHERE email='student@example.invalid'")).rows[0].first_name==='Updated','Profile saving verifies the password and updates the correct account');

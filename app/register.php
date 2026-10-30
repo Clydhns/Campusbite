@@ -97,10 +97,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !cbAuthRequestValid()) {
                     :contact_number,
                     :grade_section,
                     1
-                )
+                ) RETURNING user_id, role_id, first_name, last_name, email
             ";
 
             $stmt = $pdo->prepare($sql);
+            $registeredUser = null;
 
             try { $stmt->execute([
                 "id_number" => $id_number,
@@ -111,10 +112,28 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !cbAuthRequestValid()) {
                 "contact_number" => $contact_number,
                 "grade_section" => $grade_section
             ]);
-                $message = 'Registration successful! You can now log in.';
+                $registeredUser = $stmt->fetch(PDO::FETCH_ASSOC);
             } catch (PDOException $exception) {
                 if ($exception->getCode()==='23505') $error='ID number or email is already registered.';
                 else { error_log($exception->getMessage()); $error='Unable to register right now. Please try again.'; }
+            }
+            if (!empty($registeredUser['user_id'])) {
+                // A new account must not inherit another account's cart or session tokens.
+                $_SESSION = [];
+                if (session_regenerate_id(true)) {
+                    $_SESSION = [
+                        'user_id' => (int) $registeredUser['user_id'],
+                        'role_id' => (int) $registeredUser['role_id'],
+                        'first_name' => $registeredUser['first_name'],
+                        'last_name' => $registeredUser['last_name'],
+                        'email' => $registeredUser['email'],
+                        'role_name' => 'Student',
+                    ];
+                    session_write_close();
+                    header('Location: dashboard.php', true, 303);
+                    exit;
+                }
+                $message = 'Your account was created. Please sign in to continue.';
             }
         }
     }
