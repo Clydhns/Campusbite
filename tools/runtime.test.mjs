@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
@@ -76,6 +76,8 @@ try {
     'Page and permission checks share one application connection while sessions retain their own application-role connection');
   check(reuse.batch_store_validation,
     'Batched cart ownership accepts same-store items and rejects mixed, missing and closed-store items under transaction locks');
+  check(reuse.multi_cart_authority,
+    'Cart grouping ignores forged session store labels, rejects malformed selectors and removes only selected item keys');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
     APP_SESSION_SECRET:randomBytes(48).toString('hex'),CAMPUSBITE_LOCAL_TEST:'1'}});
@@ -110,14 +112,56 @@ try {
   assert.ok(add.html.includes('added to cart'));
   const otherMenu=await student('menu.php?store=2');
   const mixed=await student('menu.php?store=2',{csrf_token:token(otherMenu.html),item_id:'2',quantity:'1'});
-  check(mixed.html.includes('One store per checkout'),'A cart cannot mix items from different stores');
-  const checkout=await student('checkout.php'); assert.equal(checkout.status,200);
-  const placed=await student('checkout.php',{csrf_token:token(checkout.html),action:'place_order',payment_method:'Cash',remarks:'Fixture only'});
+  check(mixed.html.includes('added to cart'),'Food from different stores can coexist in the student cart');
+  const grouped=await student('cart.php');
+  check(grouped.html.includes('data-cart-store="1"') && grouped.html.includes('data-cart-store="2"')
+    && grouped.html.includes('checkout.php?store=1') && grouped.html.includes('checkout.php?store=2'),
+    'Each store renders its own cart card and separate checkout link');
+  const chooseStore=await student('checkout.php');
+  check(chooseStore.html.includes('Choose a store cart') && !chooseStore.html.includes('id="checkoutForm"'),
+    'A mixed-store cart cannot silently check out without an explicit store choice');
+  await student('checkout.php',{csrf_token:token(grouped.html),action:'place_order',store_id:'999999',payment_method:'Cash',remarks:''});
+  check((await db.query('SELECT order_id FROM public.orders')).rows.length===0,'Invalid store selection cannot create an order');
+  await db.exec('UPDATE public.stores SET is_open=0 WHERE store_id=2');
+  const openKitchen=await student('checkout.php?store=1');
+  check(openKitchen.html.includes('id="checkoutForm"'),'A closed kitchen in another cart does not block checkout for an open kitchen');
+  await db.exec("UPDATE public.stores SET is_open=1,gcash_number='09170000000' WHERE store_id=2");
+  const checkout=await student('checkout.php?store=1'); assert.equal(checkout.status,200);
+  const otherCheckout=await student('checkout.php?store=2');
+  if(process.env.CAMPUSBITE_QA_EXPORT) {
+    const destination=path.resolve(process.env.CAMPUSBITE_QA_EXPORT);
+    await mkdir(destination,{recursive:true});
+    await writeFile(path.join(destination,'cart.html'),grouped.html);
+    await writeFile(path.join(destination,'checkout.html'),checkout.html);
+    const assets=new Set([...grouped.html.matchAll(/(?:href|src)="([^"?#]+\.(?:css|js))(?:\?[^"#]*)?"/g),
+      ...checkout.html.matchAll(/(?:href|src)="([^"?#]+\.(?:css|js))(?:\?[^"#]*)?"/g)].map(match=>match[1]));
+    for(const asset of assets) {
+      assert.ok(!asset.includes('..') && !asset.includes(':'));
+      await mkdir(path.dirname(path.join(destination,asset)),{recursive:true});
+      await copyFile(path.join(root,'app',asset),path.join(destination,asset));
+    }
+    console.log('Exported synthetic cart/checkout HTML for local responsive QA; no customer data included.');
+  }
+  check(checkout.html.includes('name="store_id" value="1"') && checkout.html.includes('Fixture Meal') && !checkout.html.includes('Other Meal'),
+    'Checkout displays only the selected kitchen and carries its store ID through submission');
+  const placed=await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Fixture only',item_id:'2',price:'0.01'});
   assert.equal(placed.status,302,placed.html.slice(0,200));
   const order=(await db.query('SELECT order_id,order_number,total_amount,status_id FROM public.orders')).rows[0];
   check(order && /^ORD-\d{8}-001$/.test(order.order_number) && Number(order.total_amount)===100,'Checkout generates an order number, current-price total and atomic order records');
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),8);
   check(true,'Checkout reserves exactly the requested stock');
+  const retained=await student('cart.php');
+  check(retained.html.includes('data-cart-store="2"') && !retained.html.includes('data-cart-store="1"')
+    && Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=2')).rows[0].quantity_remaining)===10,
+    'Successful checkout removes only the selected store cart and leaves other-store stock untouched');
+  const confirmation=await student('checkout.php?success=1');
+  check(confirmation.html.includes('View remaining store carts'),'Order confirmation links back to unpurchased store carts');
+  await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Repeat'});
+  check((await db.query('SELECT order_id FROM public.orders')).rows.length===1,'A stale checkout submission cannot duplicate an order or consume another store cart');
+  await student('checkout.php',{csrf_token:token(otherCheckout.html),store_id:'2',action:'place_order',payment_method:'GCash',remarks:'Second kitchen'});
+  const otherOrder=(await db.query('SELECT o.store_id,o.total_amount,p.method FROM public.orders o JOIN public.payments p ON p.order_id=o.order_id WHERE o.order_id<>$1',[order.order_id])).rows[0];
+  check(Number(otherOrder.store_id)===2 && Number(otherOrder.total_amount)===60 && otherOrder.method==='GCash',
+    'An already-open second-store checkout remains valid and creates its own order, total and payment');
   const orders=await student('orders.php');
   const cancelled=await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Fixture cancellation'});
   assert.equal(cancelled.status,200);
@@ -138,7 +182,7 @@ try {
   const secondCheckout=await student('checkout.php');
   await student('checkout.php',{csrf_token:token(secondCheckout.html),action:'place_order',payment_method:'Cash',remarks:''});
   const second=(await db.query('SELECT order_id,order_number FROM public.orders ORDER BY order_id DESC LIMIT 1')).rows[0];
-  check(second.order_number.endsWith('-002'),'Successive checkouts receive distinct order numbers');
+  check(second.order_number.endsWith('-003'),'Successive per-store checkouts receive distinct order numbers');
   await assert.rejects(db.exec(`UPDATE public.orders SET status_id=2 WHERE order_id=${Number(second.order_id)}`));
   check(true,'Database trigger prevents preparing an unpaid order');
   const staffOrders=await staff('staff_dashboard.php');
@@ -172,6 +216,37 @@ try {
   const registration=client(); const register=await registration('register.php');
   await registration('register.php',{csrf_token:token(register.html),id_number:'FIXTURE-NEWSTUDENT',first_name:'New',last_name:'Student',email:'newstudent@example.invalid',contact_number:'',grade_section:'',password:'Fixture-Only-Password9!',confirm_password:'Fixture-Only-Password9!'});
   check((await db.query("SELECT user_id FROM public.users WHERE email='newstudent@example.invalid' AND role_id=3")).rows.length===1,'Registration validates CSRF and creates only a student account');
+  const separateCarts=client(); await signin(separateCarts,'student@example.invalid');
+  for(const store of [1,2]) {
+    const page=await separateCarts('menu.php?store='+store);
+    const added=await separateCarts('menu.php?store='+store,{csrf_token:token(page.html),item_id:String(store),quantity:'1'});
+    assert.ok(added.html.includes('added to cart'));
+  }
+  const allCarts=await separateCarts('cart.php');
+  await separateCarts('cart.php',{csrf_token:'invalid',action:'clear_store',store_id:'1'});
+  let afterClear=await separateCarts('cart.php');
+  check(afterClear.html.includes('data-cart-store="1"') && afterClear.html.includes('data-cart-store="2"'),'Store-cart removal requires valid CSRF protection');
+  await separateCarts('cart.php',{csrf_token:token(allCarts.html),action:'clear_store',store_id:'1'});
+  afterClear=await separateCarts('cart.php');
+  check(!afterClear.html.includes('data-cart-store="1"') && afterClear.html.includes('data-cart-store="2"'),'Removing one store cart preserves the other store cart');
+  const restore=await separateCarts('menu.php?store=1');
+  await separateCarts('menu.php?store=1',{csrf_token:token(restore.html),item_id:'1',quantity:'1'});
+  const cancelStore=await separateCarts('checkout.php?store=2');
+  await separateCarts('checkout.php',{csrf_token:token(cancelStore.html),store_id:'2',action:'cancel_checkout'});
+  const afterCancel=await separateCarts('cart.php');
+  check(afterCancel.html.includes('data-cart-store="1"') && !afterCancel.html.includes('data-cart-store="2"'),'Cancelling checkout clears only that store and leaves the other cart saved');
+  const addOther=await separateCarts('menu.php?store=2');
+  await separateCarts('menu.php?store=2',{csrf_token:token(addOther.html),item_id:'2',quantity:'1'});
+  const stockCheck=await separateCarts('checkout.php?store=1');
+  const orderCount=(await db.query('SELECT COUNT(*) AS n FROM public.orders')).rows[0].n;
+  await db.exec('UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1');
+  const failedStock=await separateCarts('checkout.php',{csrf_token:token(stockCheck.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:''});
+  assert.ok(failedStock.html.includes('Not enough stock'));
+  await db.exec('UPDATE public.daily_menu SET quantity_remaining=9 WHERE item_id=1');
+  const afterFailure=await separateCarts('cart.php');
+  check((await db.query('SELECT COUNT(*) AS n FROM public.orders')).rows[0].n===orderCount
+    && afterFailure.html.includes('data-cart-store="1"') && afterFailure.html.includes('data-cart-store="2"'),
+    'A stock failure rolls back the selected checkout and preserves both store carts');
   const profile=await student('profile.php');
   await student('profile.php',{csrf_token:token(profile.html),first_name:'Updated',last_name:'STUDENT',email:'student@example.invalid',contact_number:'',grade_section:'',current_password:password});
   check((await db.query("SELECT first_name FROM public.users WHERE email='student@example.invalid'")).rows[0].first_name==='Updated','Profile saving verifies the password and updates the correct account');

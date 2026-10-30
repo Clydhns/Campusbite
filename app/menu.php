@@ -90,10 +90,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
 
                 $cart = $_SESSION["cart"] ?? [];
-                $cartStore = cbCartStore($pdo, $cart);
-                if ($cartStore && (int) $cartStore["store_id"] !== (int) $item["store_id"]) {
-                    throw new RuntimeException("One store per checkout. Clear your current cart before choosing a different store.");
-                }
                 $currentQty = (int) ($cart[$itemId]["quantity"] ?? 0);
                 $newQty = $currentQty + $quantity;
 
@@ -261,7 +257,7 @@ function foodEmoji($category) {
     <?php endif; ?>
 
     <section class="cb-store-section cb-menu-kitchens" aria-labelledby="kitchens-heading">
-        <div class="kitchens-heading"><h2 id="kitchens-heading">Choose your kitchen</h2><span>One kitchen. One checkout.</span></div>
+        <div class="kitchens-heading"><h2 id="kitchens-heading">Choose your kitchen</h2><span>Save several carts. Check out each kitchen separately.</span></div>
         <nav class="kitchen-options" aria-label="Choose a kitchen">
             <a href="menu.php" class="cb-store-tile kitchen-tab kitchen-all <?= $selectedStore === 0 ? 'is-selected' : '' ?>" data-store-name="All kitchens" <?= $selectedStore === 0 ? 'aria-current="true"' : '' ?>>
                 <span class="kitchen-all-icon" aria-hidden="true">&#9670;</span>

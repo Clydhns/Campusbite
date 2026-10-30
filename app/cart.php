@@ -5,6 +5,7 @@ header('Cache-Control: private, no-store');
 
 ob_start(); require_once __DIR__ . "/config/connection.php"; ob_end_clean();
 require_once __DIR__ . "/config/stores.php";
+require_once __DIR__ . "/config/cart-groups.php";
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +34,10 @@ if (!isset($_SESSION["cart"]) || !is_array($_SESSION["cart"])) {
 
 $message = "";
 $messageType = "";
+if (($_GET['cancelled'] ?? '') === '1') {
+    $message = 'Checkout cancelled for that store. Your other carts are unchanged.';
+    $messageType = 'success';
+}
 $cartCsrf = cbCsrf("cart_csrf");
 if ($_SERVER["REQUEST_METHOD"] === "POST" && !cbCheckCsrf("cart_csrf")) {
     $message = "Invalid request. Refresh and try again.";
@@ -41,8 +46,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !cbCheckCsrf("cart_csrf")) {
 }
 if (($_POST["action"] ?? "") === "clear_cart") {
     $_SESSION["cart"] = [];
-    $message = "Cart cleared. You can choose another store.";
+    $message = "All store carts cleared.";
     $messageType = "success";
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear_store') {
+    try {
+        $storeToClear = filter_var($_POST['store_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+        $currentGroups = cbCartGroups($pdo, $_SESSION['cart']);
+        if ($storeToClear === false || !isset($currentGroups[$storeToClear])) {
+            throw new RuntimeException('This store cart could not be found. Reload your carts.');
+        }
+        cbRemoveCartItems($_SESSION['cart'], $currentGroups[$storeToClear]['items']);
+        $message = 'This store cart was removed. Your other carts are unchanged.';
+        $messageType = 'success';
+    } catch (RuntimeException $exception) {
+        $message = $exception instanceof PDOException ? 'Unable to update this store cart right now.' : $exception->getMessage();
+        $messageType = 'error';
+    }
 }
 
 /*
@@ -407,11 +427,12 @@ foreach ($_SESSION["cart"] as $cartItem) {
 }
 
 $total = $subtotal;
-$cartStore = null;
-try { $cartStore = cbCartStore($pdo, $_SESSION["cart"]); }
-catch (RuntimeException $exception) { $message = $exception->getMessage(); $messageType = "error"; }
-$canCheckout = $cartStore && !array_filter($_SESSION['cart'], static fn($item) => !empty($item['unavailable']));
-$kitchenMenuUrl = $cartStore ? 'menu.php?store=' . (int) $cartStore['store_id'] : 'menu.php';
+$cartGroups = [];
+try { $cartGroups = cbCartGroups($pdo, $_SESSION['cart']); }
+catch (RuntimeException $exception) {
+    $message = 'Unable to group your carts right now. Please reload before checking out.';
+    $messageType = 'error';
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -873,6 +894,7 @@ $firstName =
     <link rel="stylesheet" href="student-pages.css?v=1">
 <link rel="stylesheet" href="stores.css?v=1">
     <link rel="stylesheet" href="cart-refresh.css?v=<?= (int) filemtime(__DIR__ . '/cart-refresh.css') ?>">
+    <link rel="stylesheet" href="cart-groups.css?v=<?= (int) filemtime(__DIR__ . '/cart-groups.css') ?>">
     <script src="cart-refresh.js?v=<?= (int) filemtime(__DIR__ . '/cart-refresh.js') ?>" defer></script>
 </head>
 
@@ -892,9 +914,9 @@ $firstName =
     <main class="container" id="cart-content">
 
         <?php if (!empty($_SESSION["cart"])): ?>
-        <div class="cb-store-notice"><span><strong><?= $cartStore ? cbEscape($cartStore["store_name"]) : "Review your cart" ?></strong><small>One kitchen, one checkout, one pickup.</small></span>
+        <div class="cb-store-notice"><span><strong><?= count($cartGroups) ?> store cart<?= count($cartGroups) === 1 ? '' : 's' ?></strong><small>Save picks from different kitchens. Check out each store separately.</small></span>
             <form method="POST">
-<input type="hidden" name="csrf_token" value="<?= cbEscape($cartCsrf) ?>"><input type="hidden" name="action" value="clear_cart"><button class="btn btn-secondary" type="submit">Clear cart / switch store</button></form>
+<input type="hidden" name="csrf_token" value="<?= cbEscape($cartCsrf) ?>"><input type="hidden" name="action" value="clear_cart"><button class="btn btn-secondary" type="submit">Clear all carts</button></form>
         </div>
         <?php endif; ?>
         <!-- PAGE HEADER -->
@@ -903,7 +925,7 @@ $firstName =
             <span class="cb-page-eyebrow">YOUR PICKS. READY TO GO.</span>
 
             <h1>
-                Your <span>cart.</span>
+                Your <span>store carts.</span>
             </h1>
 
             <p>
@@ -911,7 +933,7 @@ $firstName =
                 <?php
                 echo htmlspecialchars($firstName);
                 ?>!
-                Review your selected food before checkout.
+                Your favorites, organized by kitchen. One checkout at a time.
             </p>
 
         </div>
@@ -981,33 +1003,60 @@ $firstName =
                  CART LAYOUT
             =================================================== -->
 
+            <div class="store-carts">
+            <?php foreach ($cartGroups as $groupStoreId => $group):
+                $cartStore = $group['store'];
+                $canCheckout = $group['can_checkout'];
+                $kitchenMenuUrl = $cartStore ? 'menu.php?store=' . (int) $groupStoreId : 'menu.php';
+            ?>
+            <section class="cart-store-group" data-cart-store="<?= (int) $groupStoreId ?>" aria-labelledby="cart-store-<?= (int) $groupStoreId ?>">
+                <header class="cart-store-header">
+                    <div><span class="cart-store-eyebrow">YOUR CAMPUS KITCHEN</span><h2 id="cart-store-<?= (int) $groupStoreId ?>"><?= cbEscape($cartStore['store_name'] ?? 'Unavailable items') ?></h2><p><?= (int) $group['quantity'] ?> item<?= $group['quantity'] === 1 ? '' : 's' ?> &middot; Separate checkout and pickup</p></div>
+                    <form method="POST" action="cart.php">
+                        <input type="hidden" name="csrf_token" value="<?= cbEscape($cartCsrf) ?>">
+                        <input type="hidden" name="action" value="clear_store">
+                        <input type="hidden" name="store_id" value="<?= (int) $groupStoreId ?>">
+                        <button type="submit" class="remove-button" aria-label="Remove cart for <?= cbEscape($cartStore['store_name'] ?? 'unavailable items') ?>">Remove cart</button>
+                    </form>
+                </header>
             <div class="cart-layout">
+                <div class="store-cart-foods">
+                    <div class="store-cart-preview" aria-label="Food in this store cart">
+                        <?php foreach (array_slice($group['items'], 0, 4) as $previewItem): ?>
+                            <div class="store-cart-thumb">
+                                <?php if ($preview = cbFoodPhotoUrl($previewItem['image_path'] ?? null)): ?>
+                                    <img src="<?= cbEscape($preview) ?>" alt="<?= cbEscape($previewItem['item_name'] ?? 'Food') ?>" width="72" height="72" loading="lazy">
+                                <?php else: ?><span><?= cbEscape($previewItem['item_name'] ?? 'Food') ?></span><?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                        <a href="<?= cbEscape($kitchenMenuUrl) ?>" class="store-cart-add" aria-label="Add food from <?= cbEscape($cartStore['store_name'] ?? 'a kitchen') ?>">+</a>
+                    </div>
 
 
                 <!-- ==================================================
                      CART ITEMS
                 =================================================== -->
 
-                <div class="cart-list">
+                <details class="cart-list" data-store-details="<?= (int) $groupStoreId ?>">
 
-                    <div class="cart-list-header">
+                    <summary class="cart-list-header">
 
                         <h2>
-                            Your picks
+                            View / edit items
                         </h2>
 
                         <span>
                             <?php
-                            echo number_format($cartCount);
+                            echo number_format($group['quantity']);
                             ?>
                             item(s)
                         </span>
 
-                    </div>
+                    </summary>
 
 
                     <?php foreach (
-                        $_SESSION["cart"] as $itemId => $item
+                        $group['items'] as $itemId => $item
                     ): ?>
 
                         <?php
@@ -1270,6 +1319,7 @@ $firstName =
 
                     <?php endforeach; ?>
 
+                </details>
                 </div>
 
 
@@ -1280,7 +1330,7 @@ $firstName =
                 <div class="summary-card">
 
                     <h2>
-                        Order Summary
+                        Store subtotal
                     </h2>
 
 
@@ -1293,7 +1343,7 @@ $firstName =
                         <strong>
                             <?php
                             echo number_format(
-                                $cartCount
+                                $group['quantity']
                             );
                             ?>
                         </strong>
@@ -1310,7 +1360,7 @@ $firstName =
                         <strong>
                             ₱<?php
                             echo number_format(
-                                $subtotal,
+                                $group['subtotal'],
                                 2
                             );
                             ?>
@@ -1331,7 +1381,7 @@ $firstName =
                         <span>
                             ₱<?php
                             echo number_format(
-                                $total,
+                                $group['subtotal'],
                                 2
                             );
                             ?>
@@ -1342,14 +1392,14 @@ $firstName =
 
                     <?php if ($canCheckout): ?>
                     <a
-                        href="checkout.php"
+                        href="checkout.php?store=<?= (int) $groupStoreId ?>"
                         class="btn checkout-button"
                     >
-                        Continue to checkout &#8594;
+                        Check out this store &#8594;
                     </a>
                     <?php else: ?>
                         <button class="btn checkout-button" disabled>Checkout unavailable</button>
-                        <p class="cart-checkout-note">Remove unavailable food or clear the cart to choose an open kitchen.</p>
+                        <p class="cart-checkout-note">Review unavailable items or check out another store. Other carts are unaffected.</p>
                     <?php endif; ?>
 
 
@@ -1359,10 +1409,13 @@ $firstName =
                     >
                         Add more from this kitchen
                     </a>
-                    <p class="cart-checkout-note">Review pickup and payment details at checkout.</p>
+                    <p class="cart-checkout-note">Only this kitchen is included. Other carts stay saved.</p>
 
                 </div>
 
+            </div>
+            </section>
+            <?php endforeach; ?>
             </div>
 
         <?php endif; ?>

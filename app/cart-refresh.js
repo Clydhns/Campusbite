@@ -50,8 +50,10 @@
             if (!incoming) throw new Error('Incomplete cart response.');
             const top = window.scrollY;
             const height = content.getBoundingClientRect().height;
+            const expanded = new Set(Array.from(content.querySelectorAll('details[data-store-details][open]')).map(details => details.dataset.storeDetails));
             content.style.minHeight = height + 'px';
             content.replaceChildren(...Array.from(incoming.childNodes));
+            content.querySelectorAll('details[data-store-details]').forEach(details => { details.open = expanded.has(details.dataset.storeDetails); });
             document.body.dataset.cartCount = page.body.dataset.cartCount;
             const oldCartLink = document.querySelector('.cb-site-nav-pill a[href="cart.php"]');
             const newCartLink = page.querySelector('.cb-site-nav-pill a[href="cart.php"]');

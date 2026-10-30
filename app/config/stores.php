@@ -58,7 +58,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
             throw new RuntimeException('An item belongs to a closed or unavailable store. Remove it from your cart.');
         }
         if ($store && (int) $store['store_id'] !== (int) $found['store_id']) {
-            throw new RuntimeException('One store per checkout. Clear your cart before ordering from a different store.');
+            throw new RuntimeException('One store per checkout. Choose the kitchen you want to check out from your carts.');
         }
         $store = $found;
     }
@@ -66,7 +66,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
     return $store;
 }
 function cbStoreTiles(array $stores): void {
-    echo '<section class="cb-store-section" aria-labelledby="stores-title"><h2 id="stores-title">Your campus kitchens</h2><p>Choose a store. One kitchen, one checkout, one pickup.</p><div class="cb-store-grid">';
+    echo '<section class="cb-store-section" aria-labelledby="stores-title"><h2 id="stores-title">Your campus kitchens</h2><p>Save picks from several kitchens and check out each store separately.</p><div class="cb-store-grid">';
     foreach ($stores as $store) {
         echo '<a class="cb-store-tile" href="menu.php?store=' . (int) $store['store_id'] . '"><span class="cb-store-kicker">CAMPUS STORE</span><h3>' . cbEscape($store['store_name']) . '</h3><p>' . cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') . '</p><span>Browse menu &rarr;</span></a>';
     }

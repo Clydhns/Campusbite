@@ -4,6 +4,7 @@ header('Cache-Control: private, no-store');
 
 ob_start(); require_once __DIR__ . "/config/connection.php"; ob_end_clean();
 require_once __DIR__ . "/config/stores.php";
+require_once __DIR__ . "/config/cart-groups.php";
 
 // Only students can access checkout
 if (!isset($_SESSION["user_id"]) || $_SESSION["role_id"] != 3) {
@@ -14,15 +15,27 @@ if (!isset($_SESSION["user_id"]) || $_SESSION["role_id"] != 3) {
 $userId = (int) $_SESSION["user_id"];
 
 // Make sure cart exists
-if (!isset($_SESSION["cart"])) {
+if (!isset($_SESSION["cart"]) || !is_array($_SESSION["cart"])) {
     $_SESSION["cart"] = [];
 }
 
-$cart = $_SESSION["cart"];
+$cart = [];
+$selectedStoreId = 0;
 $error = "";
-$checkoutToken = cbCsrf("checkout_csrf");
-$checkoutRequestValid = $_SERVER["REQUEST_METHOD"] !== "POST" || cbCheckCsrf("checkout_csrf");
-if (!$checkoutRequestValid) $error = "Invalid request. Refresh and try again.";
+if (($_GET['success'] ?? '') !== '1') {
+    try {
+        $requestedStore = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['store_id'] ?? null) : ($_GET['store'] ?? null);
+        $selection = cbSelectedCheckoutCart($pdo, $_SESSION['cart'], $requestedStore);
+        $cart = $selection['items'];
+        $selectedStoreId = $selection['store_id'];
+    } catch (RuntimeException $exception) {
+        $error = $exception instanceof PDOException ? 'Unable to load this store cart right now.' : $exception->getMessage();
+    }
+}
+$checkoutCsrfKey = $selectedStoreId > 0 ? 'checkout_csrf_store_' . $selectedStoreId : 'checkout_csrf';
+$checkoutToken = cbCsrf($checkoutCsrfKey);
+$checkoutRequestValid = $_SERVER['REQUEST_METHOD'] !== 'POST' || cbCheckCsrf($checkoutCsrfKey);
+if (!$checkoutRequestValid) $error = 'Invalid request. Refresh and try again.';
 
 /*
 |--------------------------------------------------------------------------
@@ -84,13 +97,13 @@ if (isset($_GET["success"]) && $_GET["success"] === "1") {
 | CANCEL CHECKOUT
 |--------------------------------------------------------------------------
 */
-if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
+if ($checkoutRequestValid && $error === '' && $_SERVER["REQUEST_METHOD"] === "POST" &&
     isset($_POST["action"]) &&
     $_POST["action"] === "cancel_checkout") {
 
-    $_SESSION["cart"] = [];
+    cbRemoveCartItems($_SESSION['cart'], $cart);
 
-    header("Location: menu.php?cancelled=1");
+    header("Location: cart.php?cancelled=1");
     exit;
 }
 
@@ -103,8 +116,8 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
     isset($_POST["action"]) &&
     $_POST["action"] === "place_order") {
 
-    $paymentMethod = $_POST["payment_method"] ?? "";
-    $remarks = trim($_POST["remarks"] ?? "");
+    $paymentMethod = is_string($_POST["payment_method"] ?? null) ? $_POST["payment_method"] : '';
+    $remarks = is_string($_POST["remarks"] ?? null) ? trim($_POST["remarks"]) : '';
 
     // Validate payment method
     if (!in_array($paymentMethod, ["Cash", "GCash"], true)) {
@@ -133,6 +146,9 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
             $pdo->beginTransaction();
 
             $checkoutStore = cbCartStore($pdo, $cart);
+            if (!$checkoutStore || (int) $checkoutStore['store_id'] !== $selectedStoreId) {
+                throw new RuntimeException('This food changed stores. Review your carts before checking out.');
+            }
             if ($paymentMethod === "GCash" && empty($checkoutStore["gcash_number"])) {
                 throw new Exception("This store accepts Cash only until it sets a GCash number.");
             }
@@ -484,8 +500,8 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
             | CLEAR CART
             |--------------------------------------------------------------------------
             */
-            $_SESSION["cart"] = [];
-            $_SESSION["checkout_csrf"] = bin2hex(random_bytes(32));
+            cbRemoveCartItems($_SESSION['cart'], $cart);
+            $_SESSION[$checkoutCsrfKey] = bin2hex(random_bytes(32));
 
             /*
             |--------------------------------------------------------------------------
@@ -519,9 +535,9 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
 $cartTotal = 0;
 $displayCart = [];
 
-if (!empty($_SESSION["cart"])) {
+if (!empty($cart)) {
 
-    foreach ($_SESSION["cart"] as $cartItem) {
+    foreach ($cart as $cartItem) {
 
         $itemId = isset($cartItem["item_id"])
             ? (int) $cartItem["item_id"]
@@ -573,7 +589,7 @@ if (!empty($_SESSION["cart"])) {
     }
 }
 $displayStore = null;
-try { $displayStore = cbCartStore($pdo, $_SESSION["cart"]); }
+try { $displayStore = cbCartStore($pdo, $cart); }
 catch (RuntimeException $exception) { if ($error === "") $error = $exception->getMessage(); }
 ?>
 <!DOCTYPE html>
@@ -1034,6 +1050,9 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
             <?php endif; ?>
 
             <div class="success-buttons">
+                <?php if (!empty($_SESSION['cart'])): ?>
+                    <a href="cart.php" class="btn btn-secondary">View remaining store carts</a>
+                <?php endif; ?>
 
                 <a
                     href="orders.php<?= $successData['payment_method'] === 'GCash' && in_array($paymentState, ['unpaid', 'review'], true) ? '#payment-proof-' . (int) $successData['order_id'] : '' ?>"
@@ -1086,19 +1105,19 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
 
             <div class="empty-checkout">
 
-                <h2>Your cart is empty</h2>
+                <h2><?= empty($_SESSION['cart']) ? 'Your cart is empty' : 'Choose a store cart' ?></h2>
 
                 <p>
-                    Add some delicious food before checking out.
+                    <?= empty($_SESSION['cart']) ? 'Add food from a campus kitchen before checking out.' : 'Each kitchen has its own checkout. Review your carts to select one.' ?>
                 </p>
 
                 <br>
 
                 <a
-                    href="menu.php"
+                    href="<?= empty($_SESSION['cart']) ? 'menu.php' : 'cart.php' ?>"
                     class="btn btn-primary"
                 >
-                    Browse Menu
+                    <?= empty($_SESSION['cart']) ? 'Browse Menu' : 'View your carts' ?>
                 </a>
 
             </div>
@@ -1187,6 +1206,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                         data-payment-number="<?= cbEscape($displayStore['gcash_number'] ?? '') ?>"
                     >
 <input type="hidden" name="csrf_token" value="<?= cbEscape($checkoutToken) ?>">
+<input type="hidden" name="store_id" value="<?= (int) $selectedStoreId ?>">
 
                         <input
                             type="hidden"
@@ -1331,6 +1351,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                         style="margin-top:12px;"
                     >
 <input type="hidden" name="csrf_token" value="<?= cbEscape($checkoutToken) ?>">
+<input type="hidden" name="store_id" value="<?= (int) $selectedStoreId ?>">
 
                         <input
                             type="hidden"
@@ -1344,7 +1365,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                             style="width:100%;"
                             onclick="cancelCheckout()"
                         >
-                            Cancel Checkout
+                            Cancel this store checkout
                         </button>
 
                     </form>
@@ -1388,7 +1409,7 @@ function showPaymentInfo() {
 function cancelCheckout() {
 
     const confirmed = confirm(
-        "Are you sure you want to cancel checkout? Your cart will be cleared."
+        "Remove this store's items and cancel its checkout? Your other store carts will stay unchanged."
     );
 
     if (confirmed) {

@@ -111,8 +111,8 @@ test('receipt selection stays dirty for background-refresh protection and reject
     state.handlers.change({ target: state.file });
     assert.equal(state.preview.hidden, false);
     assert.equal(state.form.dataset.dirty, 'true');
-    state.file.files = [{ type: 'image/png', size: 6 * 1024 * 1024 }];
+    state.file.files = [{ type: 'image/png', size: 4 * 1024 * 1024 }];
     state.handlers.change({ target: state.file });
-    assert.match(state.file.error, /5 MB/);
+    assert.match(state.file.error, /3 MB/);
     assert.equal(state.preview.hidden, true);
 });

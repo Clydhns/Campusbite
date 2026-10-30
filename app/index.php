@@ -37,7 +37,7 @@ header('Cache-Control: no-store');
         <h2 id="about-title">One store. One order. One pickup.</h2>
         <div class="steps">
             <article><span class="step-number" aria-hidden="true">01</span><h3>Browse a store</h3><p>View food items, prices, and availability from participating stores.</p></article>
-            <article><span class="step-number" aria-hidden="true">02</span><h3>Place your order</h3><p>Choose food from one store per checkout and review the payment details shown by that store.</p></article>
+            <article><span class="step-number" aria-hidden="true">02</span><h3>Place your order</h3><p>Keep separate carts for different stores. Check out one kitchen at a time and review that store's payment details.</p></article>
             <article><span class="step-number" aria-hidden="true">03</span><h3>Track your pickup</h3><p>Follow your order status as the store prepares your food.</p></article>
         </div>
     </section>

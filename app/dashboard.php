@@ -1003,7 +1003,7 @@ function getStatusClass($status)
         <div data-dashboard-live="stores">
             <section id="campus-kitchens" class="cb-store-section" aria-labelledby="stores-title">
                 <h2 id="stores-title">Your campus kitchens</h2>
-                <p>Choose a store. One kitchen, one checkout, one pickup.</p>
+                <p>Pick from several kitchens. Each store has its own cart, checkout, and pickup.</p>
                 <div class="cb-store-grid cb-kitchen-grid">
                 <?php foreach ($stores as $store): ?>
                     <a class="cb-store-tile cb-kitchen-tile" href="menu.php?store=<?= (int) $store['store_id'] ?>">
