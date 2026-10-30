@@ -38,6 +38,7 @@ function authEscape($value): string {
             <span class="form-eyebrow">WELCOME BACK</span>
             <h1 id="login-title" tabindex="-1">Sign in to CampusBite</h1>
             <p class="description">Log in to your CampusBite account.</p>
+            <p class="auth-project-note"><strong>Independent student project.</strong> CampusBite is a campus food-ordering project, not an official school portal.</p>
             <?php if (!$signup && $error !== ""): ?>
                 <div class="error" role="alert"><?= authEscape($error) ?></div>
             <?php endif; ?>
@@ -47,7 +48,7 @@ function authEscape($value): string {
                 <input id="login-email" type="email" name="email" autocomplete="username" placeholder="Enter your email" value="<?= !$signup ? authEscape($_POST["email"] ?? "") : "" ?>" required>
                 <label for="login-password">Password</label>
                 <div class="password-field">
-                    <input id="login-password" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required>
+                    <input id="login-password" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" aria-describedby="login-password-help" required>
                     <button type="button" class="password-toggle" id="toggle-login-password" aria-label="Show password" aria-pressed="false" aria-controls="login-password">
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path>
@@ -55,6 +56,7 @@ function authEscape($value): string {
                         </svg>
                     </button>
                 </div>
+                <p class="auth-password-help" id="login-password-help">Use your CampusBite password, not your school, email, or GCash password.</p>
                 <button type="submit" class="login-button">Login</button>
             </form>
         </section>
@@ -62,6 +64,7 @@ function authEscape($value): string {
             <span class="form-eyebrow">JOIN THE TABLE</span>
             <h1 id="register-title" tabindex="-1">Create your account</h1>
             <p class="description">Your campus favorites are one step closer.</p>
+            <p class="auth-project-note"><strong>Independent student project.</strong> CampusBite is a campus food-ordering project, not an official school portal.</p>
             <?php if ($signup && $error !== ""): ?>
                 <div class="error" role="alert"><?= authEscape($error) ?></div>
             <?php endif; ?>
@@ -86,10 +89,11 @@ function authEscape($value): string {
                     ?>
                     <div class="form-group">
                         <label for="register-<?= $name ?>"><?= $label ?><?= !$required ? ' <span class="optional">(optional)</span>' : '' ?></label>
-                        <input id="register-<?= $name ?>" name="<?= $name ?>" type="<?= $type ?>" placeholder="<?= $placeholder ?>" autocomplete="<?= $autocomplete ?>" <?= $required ? "required" : "" ?> value="<?= $signup && $type !== "password" ? authEscape($_POST[$name] ?? "") : "" ?>">
+                        <input id="register-<?= $name ?>" name="<?= $name ?>" type="<?= $type ?>" placeholder="<?= $placeholder ?>" autocomplete="<?= $autocomplete ?>" <?= $type === "password" ? 'aria-describedby="register-password-help"' : '' ?> <?= $required ? "required" : "" ?> value="<?= $signup && $type !== "password" ? authEscape($_POST[$name] ?? "") : "" ?>">
                     </div>
                     <?php endforeach; ?>
                 </div>
+                <p class="auth-password-help" id="register-password-help">Create a unique password for CampusBite. Do not reuse your school, email, or GCash password.</p>
                 <button type="submit" class="login-button">Create Account</button>
             </form>
             <p class="register">Already have an account? <a href="login.php" data-switch="login">Login</a></p>
