@@ -43,13 +43,17 @@ function cbVisibleStores(PDO $pdo): array {
 // Always resolve ownership from the database, not from cached session fields.
 function cbCartStore(PDO $pdo, array $cart): ?array {
     if (!$cart) return null;
+    $ids = array_values(array_unique(array_map(static fn($key) => (int) ($cart[$key]['item_id'] ?? $key), array_keys($cart))));
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $store = null;
-    $stmt = $pdo->prepare("SELECT s.*,u.is_active AS staff_active FROM menu_items m
+    $stmt = $pdo->prepare("SELECT m.item_id AS cart_item_id,s.*,u.is_active AS staff_active FROM menu_items m
         JOIN stores s ON s.store_id=m.store_id JOIN users u ON u.user_id=s.staff_user_id
-        WHERE m.item_id=? AND m.archived_at IS NULL" . ($pdo->inTransaction() ? ' FOR UPDATE' : ''));
-    foreach ($cart as $key => $entry) {
-        $stmt->execute([(int) ($entry['item_id'] ?? $key)]);
-        $found = $stmt->fetch();
+        WHERE m.item_id IN ($placeholders) AND m.archived_at IS NULL ORDER BY m.item_id" . ($pdo->inTransaction() ? ' FOR UPDATE' : ''));
+    $stmt->execute($ids);
+    $foundItems = [];
+    foreach ($stmt->fetchAll() as $found) $foundItems[(int) $found['cart_item_id']] = $found;
+    foreach ($ids as $id) {
+        $found = $foundItems[$id] ?? null;
         if (!$found || !(int) $found['is_open'] || !(int) $found['staff_active']) {
             throw new RuntimeException('An item belongs to a closed or unavailable store. Remove it from your cart.');
         }
@@ -58,6 +62,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
         }
         $store = $found;
     }
+    unset($store['cart_item_id']);
     return $store;
 }
 function cbStoreTiles(array $stores): void {

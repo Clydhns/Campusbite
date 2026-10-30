@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/cloud-storage.php';
 function cbFoodPhotoUrl($path): string {
-    return is_string($path) && preg_match('~^uploads/foods/[a-f0-9]{32}\.(jpg|png|webp)$~D', $path) ? $path : '';
+    return is_string($path) && preg_match('~^uploads/foods/[a-f0-9]{32}\.(jpg|png|webp)$~D', $path) ? cbPublicImageUrl($path) : '';
 }
 function cbValidateFoodPhoto(array $file): string {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new RuntimeException('Photo upload failed. Choose a JPEG, PNG, or WebP image up to 3 MB.');
@@ -15,8 +15,8 @@ function cbValidateFoodPhoto(array $file): string {
     return $types[$mime];
 }
 function cbDeleteFoodPhoto($path): void {
-    $relative = cbFoodPhotoUrl($path);
-    if (!$relative) return;
+    $relative = cbStoragePath($path);
+    if (!str_starts_with($relative, 'uploads/foods/')) return;
     cbStorageDelete($relative);
 }
 function cbSaveFoodPhoto(PDO $pdo, int $storeId, int $itemId, array $file, bool $remove): array {

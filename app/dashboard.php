@@ -132,92 +132,9 @@ if (isset($_SESSION["cart"]) && is_array($_SESSION["cart"])) {
 | DEFAULT DASHBOARD VALUES
 |--------------------------------------------------------------------------
 */
-$totalOrders = 0;
-$activeOrders = 0;
-$todayOrders = 0;
-
 $stores = cbVisibleStores($pdo);
 $menuItems = [];
 $recentOrders = [];
-
-/*
-|--------------------------------------------------------------------------
-| TOTAL ORDERS
-|--------------------------------------------------------------------------
-*/
-try {
-
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE student_id = ?
-    ");
-
-    $stmt->execute([
-        $user["user_id"]
-    ]);
-
-    $totalOrders = (int) $stmt->fetchColumn();
-
-} catch (PDOException $e) {
-
-    $totalOrders = 0;
-}
-
-/*
-|--------------------------------------------------------------------------
-| ACTIVE ORDERS
-|--------------------------------------------------------------------------
-|
-| 1 = Pending
-| 2 = Preparing
-| 3 = Ready for Pickup
-|
-*/
-try {
-
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE student_id = ?
-          AND status_id IN (1, 2, 3)
-    ");
-
-    $stmt->execute([
-        $user["user_id"]
-    ]);
-
-    $activeOrders = (int) $stmt->fetchColumn();
-
-} catch (PDOException $e) {
-
-    $activeOrders = 0;
-}
-
-/*
-|--------------------------------------------------------------------------
-| TODAY'S ORDERS
-|--------------------------------------------------------------------------
-*/
-try {
-
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE student_id = ?
-          AND DATE(order_datetime) = CURRENT_DATE
-    ");
-
-    $stmt->execute([
-        $user["user_id"]
-    ]);
-
-    $todayOrders = (int) $stmt->fetchColumn();
-
-} catch (PDOException $e) {
-
-    $todayOrders = 0;
-}
 
 /*
 |--------------------------------------------------------------------------

@@ -2,6 +2,13 @@
 function cbStoragePath($path): string {
     return is_string($path) && preg_match('~^uploads/(foods|payments|receipts)/[a-f0-9]{32}\.(jpg|png|webp)$~D',$path) ? $path : '';
 }
+function cbPublicImageUrl(string $path): string {
+    $relative = cbStoragePath($path);
+    if (!$relative || str_starts_with($relative, 'uploads/receipts/')) return '';
+    $url = rtrim(getenv('SUPABASE_URL') ?: '', '/');
+    if (!preg_match('~^https://[a-z0-9-]+\.supabase\.co$~D', $url)) return $relative;
+    return $url . '/storage/v1/object/public/campusbite-images/' . substr($relative, 8);
+}
 function cbStorageConfig(): array {
     $url = rtrim(getenv('SUPABASE_URL') ?: '', '/');
     $secret = getenv('SUPABASE_SECRET_KEY') ?: '';

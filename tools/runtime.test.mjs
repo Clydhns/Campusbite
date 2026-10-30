@@ -74,6 +74,8 @@ try {
   });
   check(reuse.application_connection_reused && reuse.session_connection_separate && reuse.application_role,
     'Page and permission checks share one application connection while sessions retain their own application-role connection');
+  check(reuse.batch_store_validation,
+    'Batched cart ownership accepts same-store items and rejects mixed, missing and closed-store items under transaction locks');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
     APP_SESSION_SECRET:randomBytes(48).toString('hex'),CAMPUSBITE_LOCAL_TEST:'1'}});

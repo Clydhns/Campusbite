@@ -2,12 +2,12 @@
 require_once __DIR__ . '/food-photos.php';
 
 function cbPaymentQrUrl($path): string {
-    return is_string($path) && preg_match('~^uploads/payments/[a-f0-9]{32}\.(jpg|png|webp)$~D', $path) ? $path : '';
+    return is_string($path) && preg_match('~^uploads/payments/[a-f0-9]{32}\.(jpg|png|webp)$~D', $path) ? cbPublicImageUrl($path) : '';
 }
 
 function cbDeletePaymentQr($path): void {
-    $relative = cbPaymentQrUrl($path);
-    if (!$relative) return;
+    $relative = cbStoragePath($path);
+    if (!str_starts_with($relative, 'uploads/payments/')) return;
     cbStorageDelete($relative);
 }
 
