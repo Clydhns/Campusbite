@@ -57,6 +57,23 @@ try {
   }
   await db.exec("INSERT INTO public.categories(category_name) VALUES ('Rice Meals'); INSERT INTO public.stores(staff_user_id,store_name) VALUES (2,'Fixture Kitchen'),(3,'Other Kitchen'); INSERT INTO public.menu_items(category_id,item_name,price,store_id) VALUES (1,'Fixture Meal',50,1),(1,'Other Meal',60,2); INSERT INTO public.daily_menu(menu_date,item_id,quantity_prepared,quantity_remaining) VALUES (CURRENT_DATE,1,10,10),(CURRENT_DATE,2,10,10);");
   server=new PGLiteSocketServer({db,host:'127.0.0.1',port:18758,maxConnections:6}); await server.start();
+  const reuse=await new Promise((resolve,reject)=>{
+    const probe=spawn(php,['-d','extension=php_pdo_pgsql.dll',path.join(root,'tools/tests/connection-reuse.php')],
+      {cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
+        PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'fixture-only',CAMPUSBITE_LOCAL_TEST:'1'}});
+    let output='';
+    const deadline=setTimeout(()=>{probe.kill();reject(new Error('Connection reuse probe timed out'));},15000);
+    probe.stdout.on('data',data=>{output+=data.toString();});
+    probe.stderr.resume();
+    probe.on('error',error=>{clearTimeout(deadline);reject(error);});
+    probe.on('close',code=>{
+      clearTimeout(deadline);
+      if(code!==0) {reject(new Error('Connection reuse probe failed'));return;}
+      try {resolve(JSON.parse(output));} catch {reject(new Error('Connection reuse probe returned no report'));}
+    });
+  });
+  check(reuse.application_connection_reused && reuse.session_connection_separate && reuse.application_role,
+    'Page and permission checks share one application connection while sessions retain their own application-role connection');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
     APP_SESSION_SECRET:randomBytes(48).toString('hex'),CAMPUSBITE_LOCAL_TEST:'1'}});

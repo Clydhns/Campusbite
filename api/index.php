@@ -27,6 +27,12 @@ if (preg_match('~^uploads/(foods|payments)/[a-f0-9]{32}\.(jpg|png|webp)$~D',$rou
     exit;
 }
 if (!in_array($route,$allowed,true)) { http_response_code(404); exit('Not found.'); }
+// The public introduction does not need a database connection or a session.
+if ($route==='index.php') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST') { http_response_code(405); header('Allow: GET, HEAD'); exit; }
+    require dirname(__DIR__).'/app/index.php';
+    exit;
+}
 
 try {
     require_once dirname(__DIR__).'/app/config/cloud-database.php';
@@ -43,7 +49,7 @@ try {
     session_set_save_handler(new CampusBiteSessions(cbCloudDatabase(),$secret),true);
     session_start();
     if (isset($_SESSION['user_id'])) {
-        $identityDatabase=cbCloudDatabase();
+        $identityDatabase=cbApplicationDatabase();
         $identity=$identityDatabase->prepare('SELECT u.role_id,r.role_name FROM users u JOIN roles r ON r.role_id=u.role_id WHERE u.user_id=? AND u.is_active=1');
         $identity->execute([(int)$_SESSION['user_id']]);
         $account=$identity->fetch();

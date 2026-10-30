@@ -4,7 +4,7 @@ require_once __DIR__ . '/cloud-database.php';
 
 try {
 
-    $pdo = cbCloudDatabase();
+    $pdo = cbApplicationDatabase();
 
     $pdo->setAttribute(
         PDO::ATTR_ERRMODE,

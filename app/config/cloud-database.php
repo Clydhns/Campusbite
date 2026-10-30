@@ -21,10 +21,15 @@ function cbCloudDatabase(): PDO {
         PDO::ATTR_EMULATE_PREPARES => true,
         PDO::ATTR_PERSISTENT => false,
     ]);
-    $pdo->exec("SET TIME ZONE 'Asia/Manila'");
-    $pdo->exec('SET ROLE campusbite_app');
-    $pdo->exec('SET search_path TO public, pg_catalog');
-    $pdo->exec("SET statement_timeout TO '15s'");
-    $pdo->exec("SET lock_timeout TO '8s'");
+    $pdo->exec("SET TIME ZONE 'Asia/Manila'; SET ROLE campusbite_app; "
+        . "SET search_path TO public, pg_catalog; SET statement_timeout TO '15s'; SET lock_timeout TO '8s'");
     return $pdo;
+}
+
+function cbApplicationDatabase(): PDO {
+    // Share authorization/page queries within this PHP request, never across users.
+    // Sessions still use their own connection to own their advisory lock.
+    static $connection = null;
+    if ($connection === null) $connection = cbCloudDatabase();
+    return $connection;
 }
