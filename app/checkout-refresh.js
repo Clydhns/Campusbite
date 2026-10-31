@@ -13,6 +13,10 @@
     let timer, controller;
     let failures = 0, stopped = false, leaving = false;
 
+    function showStatus(message, state) {
+        if (status.textContent !== message) status.textContent = message;
+        if (status.dataset.state !== state) status.dataset.state = state;
+    }
     function schedule() {
         clearTimeout(timer);
         if (stopped || leaving || document.hidden) return;
@@ -30,12 +34,12 @@
         link.textContent = 'Open My Orders';
         status.append(link);
     }
-    async function refresh() {
+    async function refresh(manual = false) {
         if (stopped || leaving || document.hidden || controller) return;
         clearTimeout(timer);
         const request = new AbortController();
         controller = request;
-        button.disabled = true;
+        if (manual === true) button.disabled = true;
         const timeout = setTimeout(() => request.abort(), 10000);
         try {
             url.searchParams.set('version', card.dataset.orderVersion || '');
@@ -43,8 +47,7 @@
             if (!response.ok) throw new Error('Order update unavailable');
             if (leaving || document.hidden) return;
             if (response.status === 204) {
-                status.textContent = 'Live order updates connected.';
-                status.dataset.state = 'connected';
+                showStatus('Live order updates connected.', 'connected');
                 failures = 0;
                 return;
             }
@@ -66,22 +69,20 @@
                     card.querySelector(`[data-checkout-action="${action}"]`)?.focus({preventScroll:true});
                 }
                 window.scrollTo(0, top);
-                status.textContent = 'Order updated just now.';
-            } else status.textContent = 'Live order updates connected.';
+                showStatus('Order updated just now.', 'connected');
+            } else showStatus('Live order updates connected.', 'connected');
             card.dataset.orderStatus = incoming.dataset.orderStatus;
             card.dataset.orderVersion = incoming.dataset.orderVersion || '';
-            status.dataset.state = 'connected';
             failures = 0;
         } catch (error) {
             if (!leaving && !document.hidden) {
                 failures++;
-                status.dataset.state = 'error';
-                status.textContent = 'Connection interrupted. Retrying automatically.';
+                showStatus('Connection interrupted. Retrying automatically.', 'error');
             }
         } finally {
             clearTimeout(timeout);
             controller = null;
-            button.disabled = false;
+            if (manual === true) button.disabled = false;
             schedule();
         }
     }
@@ -108,6 +109,6 @@
     });
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
-    button.addEventListener('click', refresh);
+    button.addEventListener('click', () => refresh(true));
     schedule();
 })();

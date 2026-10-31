@@ -14,6 +14,9 @@ function fixture(options = {}) {
         replaceChildren(...nodes) {this.innerHTML=nodes.map(node=>node.html).join('');} };
     state.incoming = {innerHTML:'pending', dataset:{...card.dataset}, childNodes:[{html:'pending'}]};
     const status = {dataset:{}, textContent:'Waiting', append(node) {this.link=node;}};
+    let statusText = status.textContent;
+    state.statusWrites = 0;
+    Object.defineProperty(status, 'textContent', {get:()=>statusText,set:value=>{statusText=value;state.statusWrites++;}});
     const button = {disabled:false, hidden:false, addEventListener(name,fn) {state.click=fn;}};
     const document = {hidden:false, body:{dataset:{checkoutUser:'1'}}, activeElement:null,
         getElementById:id=>({'checkout-live-card':card,'checkout-sync-status':status,'checkout-sync-refresh':button})[id],
@@ -51,7 +54,7 @@ test('staff changes update status and payment without reload or losing scroll an
 });
 test('manual checks and focus refresh immediately without overlapping requests',async()=>{
     const page=fixture({pending:true});const pending=page.poll();page.click();page.windowEvents.focus();
-    assert.equal(page.calls,1);assert.equal(page.button.disabled,true);
+    assert.equal(page.calls,1);assert.equal(page.button.disabled,false);
     page.windowEvents.pagehide();await pending;assert.equal(page.button.disabled,false);assert.equal(page.timers.size,0);
 });
 test('changed sessions and different orders clear stale confirmation data and stop polling',async()=>{
@@ -94,4 +97,12 @@ test('one-second conditional checks avoid HTML download and parsing when unchang
     assert.equal(page.parsed,undefined);assert.equal(page.card.innerHTML,'pending');
     page.responseStatus=200;page.ready();await page.poll();assert.equal(page.card.dataset.orderVersion,'b'.repeat(64));
     page.responseStatus=204;await page.poll();assert.equal(page.url.searchParams.get('version'),'b'.repeat(64));
+});
+test('background checks keep the button steady and do not rewrite an unchanged live label',async()=>{
+    const page=fixture();page.responseStatus=204;await page.poll();const writes=page.statusWrites;
+    await page.poll();await page.poll();assert.equal(page.statusWrites,writes);assert.equal(page.button.disabled,false);
+});
+test('only an explicit manual check shows the temporary disabled button',async()=>{
+    const page=fixture({pending:true});const pending=page.click();assert.equal(page.button.disabled,true);
+    page.windowEvents.pagehide();await pending;assert.equal(page.button.disabled,false);
 });

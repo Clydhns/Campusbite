@@ -13,6 +13,10 @@
     let stopped = false, leaving = false, failures = 0, revision = 0;
     let latestTracking = [], trackingLoading = false, trackingSource;
 
+    function showStatus(message, state) {
+        if (status.textContent !== message) status.textContent = message;
+        if (status.dataset.state !== state) status.dataset.state = state;
+    }
     function busy() {
         return document.body.dataset.staffOrdersSaving === 'true'
             || document.getElementById('payment-confirmation')?.open
@@ -59,14 +63,14 @@
         status.textContent = 'Your staff session changed. ';
         const link = document.createElement('a'); link.href = 'login.php'; link.textContent = 'Sign in again'; status.append(link);
     }
-    async function refresh() {
+    async function refresh(manual = false) {
         if (stopped || leaving || document.hidden || controller) return;
         if (busy()) { schedule(); return; }
         clearTimeout(timer);
         const generation = revision;
         const request = new AbortController();
         controller = request;
-        button.disabled = true;
+        if (manual === true) button.disabled = true;
         const timeout = setTimeout(() => request.abort(), 10000);
         try {
             url.searchParams.set('version', document.body.dataset.staffOrdersVersion || '');
@@ -76,8 +80,7 @@
             if (response.status === 204) {
                 loadTracking();
                 failures = 0;
-                status.dataset.state = 'connected';
-                status.textContent = 'Live order updates connected.';
+                showStatus('Live order updates connected.', 'connected');
                 return;
             }
             const page = new DOMParser().parseFromString(await response.text(), 'text/html');
@@ -112,18 +115,16 @@
             window.scrollTo(0, Math.max(0, top + (newAnchor && top > 0 ? newAnchor.getBoundingClientRect().top - anchorTop : 0)));
             document.body.dataset.staffOrdersVersion = version;
             failures = 0;
-            status.dataset.state = 'connected';
-            status.textContent = added ? 'New orders received.' : 'Orders updated just now.';
+            showStatus(added ? 'New orders received.' : 'Orders updated just now.', 'connected');
         } catch (error) {
             if (!leaving && !document.hidden && generation === revision && !busy()) {
                 failures++;
-                status.dataset.state = 'error';
-                status.textContent = 'Connection interrupted. Retrying automatically.';
+                showStatus('Connection interrupted. Retrying automatically.', 'error');
             }
         } finally {
             clearTimeout(timeout);
             controller = null;
-            button.disabled = false;
+            if (manual === true) button.disabled = false;
             schedule();
         }
     }
@@ -149,6 +150,6 @@
     window.addEventListener('pageshow', event => { if (event.persisted) { leaving = false; return refresh(); } });
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
-    button.addEventListener('click', refresh);
+    button.addEventListener('click', () => refresh(true));
     schedule();
 })();

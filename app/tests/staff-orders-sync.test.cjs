@@ -17,6 +17,9 @@ function fixture(options = {}) {
         ? (selector.includes('script')?{textContent:state.payload}:{}) : null,
         replaceChildren(...nodes){state.tracking=nodes;}};
     const status = {dataset:{},textContent:'Waiting',append(link){this.link=link;}};
+    let statusText = status.textContent;
+    state.statusWrites = 0;
+    Object.defineProperty(status, 'textContent', {get:()=>statusText,set:value=>{statusText=value;state.statusWrites++;}});
     const button = {disabled:false,hidden:false,addEventListener(_name,fn){state.manual=fn;},focus(){}};
     const dialog = {open:false};
     const nodes = {'staff-orders-list':list,'staff-order-stats':stats,'staff-order-tracking':tracking,
@@ -101,4 +104,14 @@ test('first incoming order lazily loads tracking without requiring an initial or
 test('a failed first tracking download retries on a lightweight unchanged check',async()=>{
     const page=fixture();page.payload='[]';await page.poll();assert.equal(page.scripts.length,1);
     page.scripts[0].onerror();page.code=204;await page.poll();assert.equal(page.scripts.length,2);
+});
+test('automatic staff checks leave controls steady and unchanged labels untouched',async()=>{
+    const pendingPage=fixture({pending:true});const pending=pendingPage.poll();assert.equal(pendingPage.button.disabled,false);
+    pendingPage.windowEvents.pagehide();await pending;
+    const page=fixture();page.code=204;await page.poll();const writes=page.statusWrites;
+    await page.poll();await page.poll();assert.equal(page.statusWrites,writes);assert.equal(page.button.disabled,false);
+});
+test('a manual staff check still provides busy feedback until it finishes',async()=>{
+    const page=fixture({pending:true});const pending=page.manual();assert.equal(page.button.disabled,true);
+    page.windowEvents.pagehide();await pending;assert.equal(page.button.disabled,false);
 });
