@@ -3,6 +3,9 @@ body[data-dashboard-user] .cb-food-display { color:#3b2a20; text-decoration:none
 body[data-dashboard-user] .cb-food-display:hover { border-color:#f4a261; box-shadow:0 12px 28px #7e452014; }
 body[data-dashboard-user] .cb-food-display:focus-visible { outline:3px solid #a61f2e; outline-offset:4px; }
 .cb-food-display-link { color:#a61f2e; font-size:12px; font-weight:800; }
+body[data-dashboard-user] .cb-food-availability { display:inline-flex; align-self:flex-start; width:fit-content; max-width:100%; margin:6px 0 10px; padding:5px 9px; border-radius:999px; background:#fff0df; color:#78451f; font-size:11px; font-weight:800; line-height:1.4; }
+body[data-dashboard-user] .cb-food-availability[data-available="true"] { background:#edf7ef; color:#276139; }
+body[data-dashboard-user] .cb-hero-food .cb-food-availability { margin:3px 0; }
 body[data-dashboard-user] .cb-hero-food { transition:translate .2s,border-color .2s,box-shadow .2s; }
 @media(hover:hover) and (pointer:fine) {
   body[data-dashboard-user] .cb-food-display:hover { transform:translateY(-3px); }

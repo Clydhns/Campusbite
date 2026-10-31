@@ -8,7 +8,7 @@
     let timer;
     const empty = document.createElement('p');
     empty.className = 'empty-box';
-    empty.textContent = 'No food is available from this kitchen right now.';
+    empty.textContent = 'This kitchen has not added any food to display yet.';
     empty.hidden = true;
     menu.after(empty);
     function apply() {

@@ -10,8 +10,9 @@ function cbStoreMealHighlights(array $foods): array {
         $mealName = preg_match('/\b(carbonara|pasta|spaghetti|lasagna|pancit|rice|adobo|tapa|chicken|burger|pizza|sandwich)\b/', $name);
         if (!$mealCategory && !$mealName) continue;
         $photo = cbFoodPhotoUrl($food['image_path'] ?? null);
-        // Prefer a photographed meal, then an explicitly categorized meal.
-        $score = ($photo ? 10 : 0) + ($mealCategory ? 2 : 1);
+        // Prefer available meals on Home, but retain catalog meals as a fallback.
+        $score = (!empty($food['dashboard_available']) ? 20 : 0)
+            + ($photo ? 10 : 0) + ($mealCategory ? 2 : 1);
         $storeId = (int) $food['store_id'];
         if (!isset($scores[$storeId]) || $score > $scores[$storeId]) {
             $scores[$storeId] = $score;

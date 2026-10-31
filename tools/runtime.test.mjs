@@ -107,6 +107,56 @@ try {
     const page=await student(route); assert.equal(page.status,200,route); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Student dashboard, menu, empty cart, orders and profile render through PHP/PostgreSQL');
+  const dashboardCard=(html,id)=>html.match(new RegExp(`<a\\b[^>]*data-food-id="${id}"[^>]*>[\\s\\S]*?<\\/a>`))?.[0] || '';
+  const heroSection=html=>html.match(/<section class="cb-hero cb-food-hero"[\s\S]*?<\/section>/)?.[0] || '';
+  const fixturePhoto='uploads/foods/'+'a'.repeat(32)+'.png';
+  await db.query('UPDATE public.menu_items SET image_path=$1 WHERE item_id=1',[fixturePhoto]);
+  for(const [label,change] of [
+    ['Currently unavailable','UPDATE public.menu_items SET is_available=0 WHERE item_id=1'],
+    ['Currently unavailable','UPDATE public.daily_menu SET is_available=0 WHERE item_id=1'],
+    ['Sold out today','UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1'],
+    ['Not available today',"UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=1"]
+  ]) {
+    await db.exec(change);
+    const dashboard=await student('dashboard.php');
+    const card=dashboardCard(dashboard.html,1);
+    const hero=heroSection(dashboard.html);
+    check(card.includes('Fixture Meal') && card.includes(fixturePhoto) && card.includes(label) && card.includes('50.00')
+      && card.includes('data-available="false"') && card.includes('menu.php?store=1')
+      && !/\d+\s+available today/.test(card) && !card.includes('<form')
+      && hero.includes('Fixture Meal') && hero.includes(fixturePhoto) && hero.includes(label)
+      && !hero.includes('Meals coming soon'),
+      `Home retains meal photos, prices and store links with ${label.toLowerCase()} labels (${change.includes('menu_items')?'catalog':'daily menu'})`);
+    const unavailableMenu=await student('menu.php?store=1');
+    const rejected=await student('menu.php?store=1',{csrf_token:token(unavailableMenu.html),item_id:'1',quantity:'1'});
+    assert.ok(rejected.html.includes('This food is currently unavailable.'));
+    assert.ok((await student('cart.php')).html.includes('Your cart is empty for now'));
+    await db.exec('UPDATE public.menu_items SET is_available=1 WHERE item_id=1; UPDATE public.daily_menu SET menu_date=CURRENT_DATE,is_available=1,quantity_remaining=10 WHERE item_id=1');
+  }
+  check(true,'Displaying unavailable catalog items never permits adding them to a cart');
+  const restocked=await student('dashboard.php');
+  check(dashboardCard(restocked.html,1).includes('data-available="true"')
+    && dashboardCard(restocked.html,1).includes('Available today')
+    && /10\s+available today/.test(dashboardCard(restocked.html,1)),
+    'Restocked meals return to available labels and show the current stock');
+  await db.exec('UPDATE public.menu_items SET store_id=1 WHERE item_id=2; UPDATE public.menu_items SET is_available=0 WHERE item_id=1');
+  const alternative=await student('dashboard.php');
+  check(heroSection(alternative.html).includes('Other Meal') && !heroSection(alternative.html).includes('Fixture Meal')
+    && dashboardCard(alternative.html,1).includes('Currently unavailable'),
+    'Hero prefers an available meal while unavailable meals remain in the catalog');
+  await db.exec('UPDATE public.menu_items SET store_id=2 WHERE item_id=2; UPDATE public.menu_items SET is_available=1 WHERE item_id=1');
+  for(const [change,restore,label] of [
+    ['UPDATE public.menu_items SET archived_at=NOW() WHERE item_id=1','UPDATE public.menu_items SET archived_at=NULL WHERE item_id=1','removed food'],
+    ['UPDATE public.stores SET is_open=0 WHERE store_id=1','UPDATE public.stores SET is_open=1 WHERE store_id=1','closed stores'],
+    ['UPDATE public.users SET is_active=0 WHERE user_id=2','UPDATE public.users SET is_active=1 WHERE user_id=2','inactive staff stores'],
+    ['UPDATE public.users SET role_id=3 WHERE user_id=2','UPDATE public.users SET role_id=2 WHERE user_id=2','non-staff owners']
+  ]) {
+    await db.exec(change);
+    const hidden=await student('dashboard.php');
+    check(!dashboardCard(hidden.html,1) && !heroSection(hidden.html).includes('Fixture Meal'),`Home still excludes ${label}`);
+    await db.exec(restore);
+  }
+  await db.exec('UPDATE public.menu_items SET image_path=NULL WHERE item_id=1');
   const menu=await student('menu.php?store=1');
   const add=await student('menu.php?store=1',{csrf_token:token(menu.html),item_id:'1',quantity:'2'});
   assert.ok(add.html.includes('added to cart'));

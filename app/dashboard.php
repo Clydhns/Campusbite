@@ -138,14 +138,11 @@ $recentOrders = [];
 
 /*
 |--------------------------------------------------------------------------
-| GET AVAILABLE FOOD
+| GET DISPLAY FOOD
 |--------------------------------------------------------------------------
 |
-| If today's daily_menu exists:
-|     use its stock and availability.
-|
-| If no daily_menu exists:
-|     fall back to menu_items.is_available.
+| Keep the store catalog visible even when an item cannot be ordered today.
+| Menu and checkout still enforce today's availability and stock separately.
 |
 */
 try {
@@ -174,15 +171,8 @@ try {
             ON dm.item_id = mi.item_id
             AND dm.menu_date = CURRENT_DATE
 
-        WHERE mi.archived_at IS NULL AND mi.is_available = 1 AND s.is_open=1 AND store_owner.is_active=1
-
-          AND (
-                dm.daily_menu_id IS NOT NULL
-                AND (
-                    dm.is_available = 1
-                    AND dm.quantity_remaining > 0
-                )
-              )
+        WHERE mi.archived_at IS NULL AND s.is_open=1
+          AND store_owner.is_active=1 AND store_owner.role_id=2
 
         ORDER BY c.category_name ASC,
                  mi.item_name ASC
@@ -193,6 +183,21 @@ try {
     $menuStmt->execute();
 
     $menuItems = $menuStmt->fetchAll();
+    foreach ($menuItems as &$item) {
+        $item['dashboard_available'] = false;
+        if ((int) $item['is_available'] !== 1
+            || ($item['daily_menu_id'] !== null && (int) $item['daily_is_available'] !== 1)) {
+            $item['dashboard_status'] = 'Currently unavailable';
+        } elseif ($item['daily_menu_id'] === null) {
+            $item['dashboard_status'] = 'Not available today';
+        } elseif ((int) $item['quantity_remaining'] <= 0) {
+            $item['dashboard_status'] = 'Sold out today';
+        } else {
+            $item['dashboard_available'] = true;
+            $item['dashboard_status'] = 'Available today';
+        }
+    }
+    unset($item);
 
 } catch (PDOException $e) {
 
@@ -963,7 +968,9 @@ function getStatusClass($status)
                 <?php if ($photo = cbFoodPhotoUrl($food['image_path'])): ?>
                 <img src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($food['item_name']) ?>" width="640" height="420" decoding="async">
                 <?php else: ?><div class="cb-meal-placeholder"><span>YOUR NEXT LUNCH</span><strong><?= cbEscape($food['item_name'] ?: 'Meals coming soon') ?></strong></div><?php endif; ?>
-                <div><span class="cb-highlight-store"><?= cbEscape($food['store_name']) ?></span><strong><?= cbEscape($food['item_name'] ?: 'Explore this kitchen') ?></strong><?php if (isset($food['price'])): ?><span>PHP <?= number_format((float) $food['price'], 2) ?></span><?php endif; ?><span class="cb-highlight-link">View store &rarr;</span></div>
+                <div><span class="cb-highlight-store"><?= cbEscape($food['store_name']) ?></span><strong><?= cbEscape($food['item_name'] ?: 'Explore this kitchen') ?></strong><?php if (isset($food['price'])): ?><span>PHP <?= number_format((float) $food['price'], 2) ?></span><?php endif; ?>
+                    <?php if (isset($food['dashboard_status'])): ?><span class="cb-food-availability" data-available="<?= $food['dashboard_available'] ? 'true' : 'false' ?>"><?= cbEscape($food['dashboard_status']) ?></span><?php endif; ?>
+                    <span class="cb-highlight-link">View store &rarr;</span></div>
             </a>
         <?php endforeach; ?>
         <?php if (!$heroFoods): ?>
@@ -1039,7 +1046,7 @@ function getStatusClass($status)
 
                 <?php foreach ($menuItems as $item): ?>
 
-                    <a class="food-card cb-food-display" data-store="<?= (int) $item['store_id'] ?>" href="menu.php?store=<?= (int) $item['store_id'] ?>" aria-label="<?= cbEscape('View ' . $item['item_name'] . ' at ' . $item['store_name']) ?>">
+                    <a class="food-card cb-food-display" data-food-id="<?= (int) $item['item_id'] ?>" data-store="<?= (int) $item['store_id'] ?>" href="menu.php?store=<?= (int) $item['store_id'] ?>" aria-label="<?= cbEscape('View ' . $item['item_name'] . ' at ' . $item['store_name']) ?>">
 
                         <?php if ($photo = cbFoodPhotoUrl($item['image_path'])): ?>
                         <img class="cb-food-photo" src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($item['item_name']) ?>" loading="lazy" width="640" height="400">
@@ -1090,9 +1097,9 @@ function getStatusClass($status)
 
                             </div>
 
-                            <?php if (
-                                $item["daily_menu_id"] !== null
-                            ): ?>
+                            <span class="cb-food-availability" data-available="<?= $item['dashboard_available'] ? 'true' : 'false' ?>"><?= cbEscape($item['dashboard_status']) ?></span>
+
+                            <?php if ($item['dashboard_available']): ?>
 
                                 <div class="food-stock">
 
@@ -1101,14 +1108,6 @@ function getStatusClass($status)
                                         "quantity_remaining"
                                     ] ?>
                                     available today
-
-                                </div>
-
-                            <?php else: ?>
-
-                                <div class="food-available">
-
-                                    ● Available
 
                                 </div>
 
@@ -1129,11 +1128,11 @@ function getStatusClass($status)
             <div class="empty-box">
 
                 <h3>
-                    🍽️ No food available right now
+                    🍽️ No food to display yet
                 </h3>
 
                 <p>
-                    Please check the menu again later.
+                    Food from your campus kitchens will appear here once added.
                 </p>
 
                 <a
