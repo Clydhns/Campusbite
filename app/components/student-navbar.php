@@ -8,9 +8,9 @@ foreach (($_SESSION["cart"] ?? []) as $navigationItem) {
 }
 $navigationLinks = [
     "dashboard.php" => "Home",
-    "menu.php" => "🍔 Menu",
-    "cart.php" => "🛒 Cart",
-    "orders.php" => "📦 My Orders",
+    "menu.php" => "Menu",
+    "cart.php" => "Cart",
+    "orders.php" => "My Orders",
     "profile.php" => "My Profile",
     "logout.php" => "Logout",
 ];
