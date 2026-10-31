@@ -18,6 +18,7 @@ $stmt->execute([$selected,$selected]);
 $orders = $stmt->fetchAll();
 ?>
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stores - CampusBite Admin</title>
+<?php require __DIR__ . '/components/favicon.php'; ?>
 <link rel="stylesheet" href="student-pages.css?v=1"><link rel="stylesheet" href="student-navbar.css?v=1"><link rel="stylesheet" href="stores.css?v=<?= (int) filemtime(__DIR__ . '/stores.css') ?>">
 <link rel="stylesheet" href="admin-navbar.css?v=<?= (int) filemtime(__DIR__ . '/admin-navbar.css') ?>">
 <link rel="stylesheet" href="admin-store-switch.css?v=<?= (int) filemtime(__DIR__ . '/admin-store-switch.css') ?>">

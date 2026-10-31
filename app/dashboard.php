@@ -301,6 +301,7 @@ function getStatusClass($status)
 <html lang="en">
 
 <head>
+    <?php require __DIR__ . '/components/favicon.php'; ?>
 
     <meta charset="UTF-8">
 

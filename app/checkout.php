@@ -533,6 +533,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require __DIR__ . '/components/favicon.php'; ?>
     <meta charset="UTF-8">
 
     <meta

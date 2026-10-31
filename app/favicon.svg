@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">CampusBite CB logo</title>
+  <rect x="1" y="1" width="62" height="62" rx="18" fill="#fff0e1" stroke="#f1d5bf" stroke-width="1.5"/>
+  <g fill="none" stroke="#bf2634" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M29 24C26 20 18 20 15 25C11 31 12 39 18 43C22 46 27 44 30 41"/>
+    <path d="M38 21V44M38 21H44C52 21 52 32 44 32H38M44 32C54 32 54 44 44 44H38"/>
+  </g>
+</svg>

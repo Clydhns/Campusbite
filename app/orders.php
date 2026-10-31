@@ -381,6 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['sync'] ?? '') === '1'
 <html lang="en">
 
 <head>
+    <?php require __DIR__ . '/components/favicon.php'; ?>
 
     <meta charset="UTF-8">
 
