@@ -465,6 +465,10 @@ try {
   }
   check(true,'Staff payment confirmation and Preparing / Ready / Completed transitions work');
   check(true,'Checkout live responses show the latest preparing, ready-for-pickup and completed headings');
+  const completedOrders=await student('orders.php');
+  const completedProgress=[...completedOrders.html.matchAll(/<ol class="order-progress"[\s\S]*?<\/ol>/g)].map(match=>match[0]);
+  check(completedProgress.length>0 && completedProgress.every(progress=>progress.includes('Completed</li>') && !progress.includes('Picked up')),
+    'My Orders labels its final progress step Completed to match the completed order status');
   const other=client(); await signin(other,'other@example.invalid');
   const otherOrders=await other('staff_dashboard.php');
   // An empty workspace renders no action forms; inspect only the disposable test

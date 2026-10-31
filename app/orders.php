@@ -1535,7 +1535,7 @@ if (
                 </div>
                 <?php if (in_array($orderGroup, ['active', 'completed'], true)): ?>
                     <ol class="order-progress" aria-label="Order progress: <?= cbEscape($order['status_name']) ?>">
-                        <?php foreach ([1=>'Placed',2=>'Preparing',3=>'Ready',4=>'Picked up'] as $step=>$label): ?>
+                        <?php foreach ([1=>'Placed',2=>'Preparing',3=>'Ready',4=>'Completed'] as $step=>$label): ?>
                             <li class="<?= $step <= $statusId ? 'is-reached' : '' ?>" <?= $step === $statusId && $orderGroup === 'active' ? 'aria-current="step"' : '' ?>><span aria-hidden="true"><?= $step < $statusId || $orderGroup === 'completed' ? '&#10003;' : $step ?></span><?= $label ?></li>
                         <?php endforeach; ?>
                     </ol>
