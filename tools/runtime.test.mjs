@@ -38,6 +38,8 @@ async function signin(request,email) {
   assert.equal(response.status,302,'Login succeeds');
 }
 try {
+  // Seed the same Philippine calendar day used by the application connections.
+  await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
   for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
@@ -113,12 +115,15 @@ try {
     && introduction.html.includes('Never enter your school-account password'),
     'Minimal landing page retains account links and project notices with one non-duplicated three-step pickup guide');
   check(introduction.html.includes('class="intro-copy"')
-    && introduction.html.includes('class="break-illustration"')
-    && /<svg\b[^>]*class="pickup-bag"[^>]*aria-hidden="true"[^>]*focusable="false"/.test(introduction.html)
+    && introduction.html.includes('class="intro-backdrop" aria-hidden="true"')
+    && introduction.html.includes('class="button hero-button"')
+    && (introduction.html.match(/class="button hero-button"/g) || []).length===1
+    && !introduction.html.includes('pickup-bag')
+    && introduction.html.includes('class="intro-explore" href="#about"')
     && introduction.html.includes('class="returning-user"')
     && introduction.html.includes('class="password-note"')
     && !/<script\b|<img\b|<form\b/i.test(introduction.html),
-    'Public landing uses a lightweight decorative brand illustration, clear returning-user access and a password warning without extra scripts, photos or forms');
+    'Centered public landing has hidden decorative lettering, one primary hero action and account/privacy links without extra scripts, photos or forms');
   const publicLogin=await anon('login.php');
   check(publicLogin.csp?.includes("form-action 'self'") && publicLogin.csp?.includes("base-uri 'self'")
     && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
