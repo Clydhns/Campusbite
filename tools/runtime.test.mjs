@@ -376,6 +376,10 @@ try {
     'Successful checkout removes only the selected store cart and leaves legacy stock untouched');
   const confirmation=await student('checkout.php?success=1');
   check(confirmation.html.includes('View remaining store carts'),'Order confirmation links back to unpurchased store carts');
+  const placedNotifications=JSON.parse((await student('order_notifications.php')).html);
+  check(placedNotifications.active_count===1 && placedNotifications.confirmed_count===0
+    && /id="student-order-notifications-count"[^>]*>1<\/span>/.test(confirmation.html),
+    'A newly placed unpaid cash order immediately shows the My Orders badge without claiming payment confirmation');
   const checkoutVersion=confirmation.html.match(/data-order-version="([a-f0-9]{64})"/)?.[1];
   const unchangedCheckout=await student('checkout.php?success=1&order='+order.order_id+'&sync=1&version='+checkoutVersion);
   check(checkoutVersion && unchangedCheckout.status===204 && unchangedCheckout.html==='',
@@ -452,8 +456,10 @@ try {
   const ordersVersion=html=>html.match(/data-orders-version="([a-f0-9]{64})"/)?.[1];
   const emptyNotifications=await student('order_notifications.php');
   check(emptyNotifications.status===200 && JSON.parse(emptyNotifications.html).confirmed_count===0
+    && JSON.parse(emptyNotifications.html).active_count===2
+    && /id="student-order-notifications-count"[^>]*>2<\/span>/.test(unpaidOrders.html)
     && !unpaidOrders.html.includes('data-payment-confirmed="'+second.order_id+'"'),
-    'Pending payments do not produce a confirmation badge or paid-order message');
+    'Pending cash and GCash orders contribute to the active badge but never produce a paid-order message');
   check((await anon('order_notifications.php')).status===401
     && (await staff('order_notifications.php')).status===403
     && (await student('order_notifications.php',{action:'change'})).status===405,
@@ -468,14 +474,14 @@ try {
   check(JSON.parse(paidNotifications.html).confirmed_count===1 && paidOrders.status===200
     && paidOrders.html.includes('data-payment-confirmed="'+second.order_id+'"')
     && paidOrders.html.includes('has confirmed your payment.')
-    && /id="student-order-notifications-count"[^>]*>1<\/span>/.test(paidOrders.html),
-    'Staff confirmation produces both a My Orders badge and payment-confirmed message, ignoring forged student selectors');
+    && /id="student-order-notifications-count"[^>]*>2<\/span>/.test(paidOrders.html),
+    'Staff confirmation retains the two active-order badge and adds payment-confirmed messaging, ignoring forged student selectors');
   check((await student('orders.php?sync=1&version='+ordersVersion(paidOrders.html))).status===204,
     'Unchanged My Orders checks avoid redrawing the page or payment notice');
   for(const route of ['dashboard.php','menu.php','cart.php','profile.php','checkout.php?success=1&order='+second.order_id]) {
-    assert.ok(/id="student-order-notifications-count"[^>]*>1<\/span>/.test((await student(route)).html),route);
+    assert.ok(/id="student-order-notifications-count"[^>]*>2<\/span>/.test((await student(route)).html),route);
   }
-  check(true,'Confirmed active-payment badges are present across all shared student navigation pages');
+  check(true,'Active-order badges are present across all shared student navigation pages');
   const staffPaid=await staff('staff_dashboard.php?sync=1&version='+staffVersion(staffOrders.html));
   check(staffPaid.status===200 && staffVersion(staffPaid.html)!==staffVersion(staffOrders.html),
     'Confirmed payments invalidate the staff live snapshot');
@@ -495,8 +501,9 @@ try {
     'My Orders labels its final progress step Completed to match the completed order status');
   check(completedProgress.every(progress=>progress.includes('Ready to pickup</li>'))
     && JSON.parse((await student('order_notifications.php')).html).confirmed_count===0
+    && JSON.parse((await student('order_notifications.php')).html).active_count===1
     && completedOrders.html.includes('data-payment-confirmed="'+second.order_id+'"'),
-    'The progress step reads Ready to pickup; completed orders retain payment confirmation without keeping the active navbar badge');
+    'Completed orders retain payment confirmation while the badge counts only the remaining active order');
   await db.query("UPDATE public.payments SET payment_status='Refunded' WHERE order_id=$1",[second.order_id]);
   check(!(await student('orders.php')).html.includes('data-payment-confirmed="'+second.order_id+'"'),
     'Refunded payments are not shown as confirmed payments');
@@ -551,6 +558,7 @@ try {
     'The newly registered student can open their own dashboard and profile without logging in again');
   await db.query('UPDATE public.orders SET status_id=2 WHERE order_id=$1',[second.order_id]);
   check(JSON.parse((await registration('order_notifications.php?student_id=4')).html).confirmed_count===0
+    && JSON.parse((await registration('order_notifications.php?student_id=4')).html).active_count===0
     && JSON.parse((await student('order_notifications.php')).html).confirmed_count===1,
     'Students can only receive their own payment counts, even when another student has an active paid order');
   await db.query('UPDATE public.orders SET status_id=4 WHERE order_id=$1',[second.order_id]);
@@ -611,12 +619,18 @@ try {
   const cashCard=html=>html.match(new RegExp('<article class="order-card" data-staff-order="'+cashOrderId+'"[\\s\\S]*?<\\/article>'))?.[0] || '';
   check(cashCard(cashPage.html).includes('Start Preparing') && cashCard(cashPage.html).includes('Cash due at pickup - not paid yet'),
     'An unpaid cash order offers preparation while clearly stating that payment is still due');
+  check(cashCard(cashPage.html).indexOf('Start Preparing') < cashCard(cashPage.html).indexOf('Confirm Cash Payment'),
+    'Cash actions place Start Preparing before Confirm Cash Payment in visual and keyboard order');
   for(const next of [2,3]) {
     const current=await staff('staff_dashboard.php');
     await staff('staff_dashboard.php',{csrf_token:token(current.html),action:'update_status',order_id:String(cashOrderId),status_id:String(next)});
     assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[cashOrderId])).rows[0].status_id),next);
     const payment=(await db.query('SELECT payment_status,paid_at,received_by FROM public.payments WHERE order_id=$1',[cashOrderId])).rows[0];
     assert.equal(payment.payment_status,'Unpaid');assert.equal(payment.paid_at,null);assert.equal(payment.received_by,null);
+    if(next===2) {
+      const preparedCash=cashCard((await staff('staff_dashboard.php')).html);
+      assert.ok(preparedCash.includes('Ready for Pickup') && preparedCash.indexOf('Ready for Pickup') < preparedCash.indexOf('Confirm Cash Payment'));
+    }
     const confirmation=await separateCarts('checkout.php?success=1&order='+cashOrderId);
     assert.ok(confirmation.html.includes('data-payment-state="unpaid"') && confirmation.html.includes('Unpaid - pay at pickup'));
     assert.ok(confirmation.html.includes(next===2?'Your order is being prepared':'Ready for pickup'));

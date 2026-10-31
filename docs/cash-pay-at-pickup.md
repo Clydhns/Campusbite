@@ -29,8 +29,11 @@ It should start with `CampusBite cash-pay-at-pickup v1`.
   cannot use the cash exception. Browser-submitted payment methods are ignored.
 - Existing store ownership, CSRF, sequential status transitions and transaction
   locks remain. Existing orders are not automatically charged or modified.
-- Student notices distinguish cash due at pickup from a real confirmed payment;
-  active-payment notification counts still include Paid orders only.
+- Student notices distinguish cash due at pickup from a real confirmed payment.
+  The My Orders badge includes all active orders immediately after checkout,
+  including unpaid cash orders; its count does not claim payment was received.
+- Cash preparation/ready actions come before the cash confirmation button, both
+  visually and in keyboard order. GCash confirmation keeps its existing position.
 
 ## Verification
 

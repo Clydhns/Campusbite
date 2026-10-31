@@ -19,5 +19,4 @@ $notificationUser = (int) $_SESSION['user_id'];
 session_write_close();
 ob_start(); require_once __DIR__ . '/config/connection.php'; ob_end_clean();
 require_once __DIR__ . '/config/order-notifications.php';
-echo json_encode(['user_id' => (string) $notificationUser,
-    'confirmed_count' => cbConfirmedActiveOrderCount($pdo, $notificationUser)]);
+echo json_encode(['user_id' => (string) $notificationUser] + cbStudentOrderNotificationCounts($pdo, $notificationUser));

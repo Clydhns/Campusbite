@@ -5,16 +5,22 @@
     const user = nav?.dataset.orderNotificationsUser;
     if (!badge || !status || !/^[1-9]\d*$/.test(user || '')) return;
     let count = Number(badge.textContent.trim()) || 0;
+    let confirmed = Number(nav.dataset.confirmedPayments) || 0;
     let timer, controller;
     let failures = 0, stopped = false, leaving = false;
-    function display(value) {
-        if (value === count) return;
-        const increased = value > count;
+    function display(value, paid) {
+        const placed = value > count;
+        const paymentConfirmed = paid > confirmed;
+        const changed = value !== count || paid !== confirmed;
+        if (value !== count) {
+            badge.textContent = String(value);
+            badge.hidden = value === 0;
+            badge.setAttribute('aria-label', `${value} active orders`);
+        }
         count = value;
-        badge.textContent = String(value);
-        badge.hidden = value === 0;
-        badge.setAttribute('aria-label', `${value} active orders with confirmed payment`);
-        status.textContent = increased ? 'Payment confirmed. Open My Orders to see your order status.' : '';
+        confirmed = paid;
+        if (changed) status.textContent = placed ? 'Order placed. Open My Orders to track its progress.'
+            : (paymentConfirmed ? 'Payment confirmed. Open My Orders to see your order status.' : '');
     }
     function schedule() {
         clearTimeout(timer);
@@ -28,13 +34,15 @@
         try {
             const response = await fetch('order_notifications.php', {credentials:'same-origin',cache:'no-store',signal:request.signal});
             if (leaving || document.hidden) return;
-            if (response.redirected || response.status === 401 || response.status === 403) { stopped = true; display(0); return; }
+            if (response.redirected || response.status === 401 || response.status === 403) { stopped = true; display(0,0); return; }
             if (!response.ok) throw new Error('Notification check unavailable');
             const data = await response.json();
             if (leaving || document.hidden) return;
-            if (data.user_id !== user) { stopped = true; display(0); return; }
-            if (!Number.isSafeInteger(data.confirmed_count) || data.confirmed_count < 0) throw new Error('Invalid notification response');
-            display(data.confirmed_count);
+            if (data.user_id !== user) { stopped = true; display(0,0); return; }
+            if (!Number.isSafeInteger(data.active_count) || data.active_count < 0
+                || !Number.isSafeInteger(data.confirmed_count) || data.confirmed_count < 0
+                || data.confirmed_count > data.active_count) throw new Error('Invalid notification response');
+            display(data.active_count,data.confirmed_count);
             failures = 0;
         } catch (error) {
             if (!leaving && !document.hidden) failures++;

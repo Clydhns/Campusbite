@@ -3,13 +3,13 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../student-order-notifications.js'),'utf8');
 function fixture(options={}) {
-    const state={calls:0,count:0,user:'4',code:200,fail:false,writes:0};
+    const state={calls:0,count:0,confirmed:0,user:'4',code:200,fail:false,writes:0};
     const events={},windowEvents={},timers=new Map();
     let text=String(options.initial || 0);
     const badge={hidden:!options.initial,setAttribute(name,value){this[name]=value;}};
     Object.defineProperty(badge,'textContent',{get:()=>text,set:value=>{text=value;state.writes++;}});
     const status={textContent:''};
-    const document={hidden:false,querySelector:()=>({dataset:{orderNotificationsUser:'4'}}),
+    const document={hidden:false,querySelector:()=>({dataset:{orderNotificationsUser:'4',confirmedPayments:String(options.confirmed || 0)}}),
         getElementById:id=>({'student-order-notifications-count':badge,'student-order-notifications-status':status})[id],
         addEventListener(name,fn){events[name]=fn;}};
     let id=0;
@@ -19,16 +19,24 @@ function fixture(options={}) {
         fetch(url,request){state.calls++;state.url=url;state.request=request;
             if(options.pending)return new Promise((_resolve,reject)=>request.signal.addEventListener('abort',()=>reject(new DOMException('Stopped','AbortError'))));
             if(state.fail)return Promise.reject(new Error('Offline'));
-            return Promise.resolve({ok:state.code===200,status:state.code,redirected:state.redirected,json:async()=>({user_id:state.user,confirmed_count:state.count})});}
+            return Promise.resolve({ok:state.code===200,status:state.code,redirected:state.redirected,json:async()=>({user_id:state.user,active_count:state.count,confirmed_count:state.confirmed})});}
     });
     return Object.assign(state,{events,windowEvents,timers,document,badge,status,
         poll(ms=3000){const entry=[...timers].find(([,timer])=>timer.ms===ms);assert.ok(entry);timers.delete(entry[0]);return entry[1].fn();}});
 }
-test('payment confirmation updates the navbar badge without a page reload',async()=>{
+test('placing an unpaid order updates the navbar badge without claiming payment',async()=>{
     const page=fixture();assert.equal(page.calls,0);page.count=1;await page.poll();
     assert.equal(page.badge.textContent,'1');assert.equal(page.badge.hidden,false);
-    assert.match(page.status.textContent,/Payment confirmed/);assert.match(page.badge['aria-label'],/confirmed payment/);
+    assert.match(page.status.textContent,/Order placed/);assert.doesNotMatch(page.status.textContent,/Payment confirmed/);assert.match(page.badge['aria-label'],/active orders/);
     assert.equal(page.request.credentials,'same-origin');assert.equal(page.request.cache,'no-store');
+});
+test('payment confirmation is still announced without changing or blinking the active order count',async()=>{
+    const page=fixture({initial:1});page.count=1;page.confirmed=1;await page.poll();
+    assert.equal(page.badge.textContent,'1');assert.equal(page.writes,0);assert.match(page.status.textContent,/Payment confirmed/);
+});
+test('a confirmed-payment count larger than the active count cannot update the badge',async()=>{
+    const page=fixture({initial:1});page.count=1;page.confirmed=2;await page.poll();
+    assert.equal(page.badge.textContent,'1');assert.equal(page.status.textContent,'');assert.ok([...page.timers.values()].some(timer=>timer.ms===6000));
 });
 test('unchanged counts do not redraw or blink and completed orders hide the badge',async()=>{
     const page=fixture({initial:1});page.count=1;await page.poll();await page.poll();assert.equal(page.writes,0);
