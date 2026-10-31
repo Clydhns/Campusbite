@@ -3,6 +3,7 @@ require_once __DIR__ . '/food-photos.php';
 require_once __DIR__ . '/payment-photos.php';
 require_once __DIR__ . '/payment-receipts.php';
 require_once __DIR__ . '/food-availability.php';
+require_once __DIR__ . '/store-hours.php';
 function cbEscape($value): string {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
@@ -68,6 +69,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
         if ($store && (int) $store['store_id'] !== (int) $found['store_id']) {
             throw new RuntimeException('One store per checkout. Choose the kitchen you want to check out from your carts.');
         }
+        if (!cbStoreAcceptingOrders($found)) throw new RuntimeException($found['store_name'] . ' is closed. Store hours: ' . cbStoreHoursLabel($found) . '. Your cart is saved.');
         $store = $found;
     }
     unset($store['cart_item_id']);
@@ -76,7 +78,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
 function cbStoreTiles(array $stores): void {
     echo '<section class="cb-store-section" aria-labelledby="stores-title"><h2 id="stores-title">Your campus kitchens</h2><p>Save picks from several kitchens and check out each store separately.</p><div class="cb-store-grid">';
     foreach ($stores as $store) {
-        echo '<a class="cb-store-tile" href="menu.php?store=' . (int) $store['store_id'] . '"><span class="cb-store-kicker">CAMPUS STORE</span><h3>' . cbEscape($store['store_name']) . '</h3><p>' . cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') . '</p><span>Browse menu &rarr;</span></a>';
+        echo '<a class="cb-store-tile" href="menu.php?store=' . (int) $store['store_id'] . '"><span class="cb-store-kicker">CAMPUS STORE</span><h3>' . cbEscape($store['store_name']) . '</h3><p>' . cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') . '</p><p class="cb-store-hours">' . cbEscape(cbStoreStatusLabel($store)) . '</p><span>Browse menu &rarr;</span></a>';
     }
     if (!$stores) echo '<p>No stores are open right now.</p>';
     echo '</div></section>';

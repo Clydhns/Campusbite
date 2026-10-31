@@ -166,10 +166,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 } else {
 
-                    $available = (int) $item['general_available'] === 1 && (int) $item['is_open'] === 1
+                    $available = (int) $item['general_available'] === 1 && (int) $item['accepting_orders'] === 1
                         && (int) $item['owner_active'] === 1 && (int) $item['owner_role'] === 2;
 
-                    if (!$available) {
+                    if (!(int) $item['accepting_orders']) {
+                        $message = 'This store is closed. Your cart is saved for its next opening.';
+                        $messageType = 'error';
+                    } elseif (!$available) {
 
                         unset($_SESSION["cart"][$itemId]);
 
@@ -235,7 +238,7 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
         --------------------------------------------------------------
         */
 
-        $available = (int) $item['general_available'] === 1 && (int) $item['is_open'] === 1
+        $available = (int) $item['general_available'] === 1 && (int) $item['accepting_orders'] === 1
             && (int) $item['owner_active'] === 1 && (int) $item['owner_role'] === 2;
 
         /*
@@ -796,7 +799,7 @@ $firstName =
 
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="student-pages.css?v=1">
-<link rel="stylesheet" href="stores.css?v=1">
+<link rel="stylesheet" href="stores.css?v=<?= (int) filemtime(__DIR__ . '/stores.css') ?>">
     <link rel="stylesheet" href="cart-refresh.css?v=<?= (int) filemtime(__DIR__ . '/cart-refresh.css') ?>">
     <link rel="stylesheet" href="cart-groups.css?v=<?= (int) filemtime(__DIR__ . '/cart-groups.css') ?>">
     <script src="cart-refresh.js?v=<?= (int) filemtime(__DIR__ . '/cart-refresh.js') ?>" defer></script>
@@ -915,7 +918,7 @@ $firstName =
             ?>
             <section class="cart-store-group" data-cart-store="<?= (int) $groupStoreId ?>" aria-labelledby="cart-store-<?= (int) $groupStoreId ?>">
                 <header class="cart-store-header">
-                    <div><span class="cart-store-eyebrow">YOUR CAMPUS KITCHEN</span><h2 id="cart-store-<?= (int) $groupStoreId ?>"><?= cbEscape($cartStore['store_name'] ?? 'Unavailable items') ?></h2><p><?= (int) $group['quantity'] ?> item<?= $group['quantity'] === 1 ? '' : 's' ?> &middot; Separate checkout and pickup</p></div>
+                    <div><span class="cart-store-eyebrow">YOUR CAMPUS KITCHEN</span><h2 id="cart-store-<?= (int) $groupStoreId ?>"><?= cbEscape($cartStore['store_name'] ?? 'Unavailable items') ?></h2><p><?= (int) $group['quantity'] ?> item<?= $group['quantity'] === 1 ? '' : 's' ?> &middot; Separate checkout and pickup</p><?php if ($cartStore): ?><p class="cb-store-hours"><?= cbEscape(cbStoreStatusLabel($cartStore)) ?></p><?php endif; ?></div>
                     <form method="POST" action="cart.php">
                         <input type="hidden" name="csrf_token" value="<?= cbEscape($cartCsrf) ?>">
                         <input type="hidden" name="action" value="clear_store">

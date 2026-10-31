@@ -859,7 +859,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
     <script src="checkout-refresh.js?v=<?= (int) filemtime(__DIR__ . '/checkout-refresh.js') ?>" defer></script>
     <?php endif; ?>
     <link rel="stylesheet" href="student-navbar.css?v=1">
-<link rel="stylesheet" href="stores.css?v=1">
+<link rel="stylesheet" href="stores.css?v=<?= (int) filemtime(__DIR__ . '/stores.css') ?>">
 </head>
 
 <body class="cb-student" data-checkout-user="<?= $userId ?>">
@@ -1083,6 +1083,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
 
                     <h2>Order Summary</h2>
                     <p class="cb-food-store"><?= cbEscape($displayStore["store_name"] ?? "Review your cart") ?> &middot; One store per checkout</p>
+                    <?php if ($displayStore): ?><p class="cb-store-hours"><?= cbEscape(cbStoreHoursLabel($displayStore)) ?></p><?php endif; ?>
 
                     <?php foreach ($displayCart as $item): ?>
 

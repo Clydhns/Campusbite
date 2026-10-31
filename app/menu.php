@@ -30,7 +30,8 @@ if (empty($_SESSION["menu_csrf"])) {
 $selectedStore = max(0, (int) ($_GET["store"] ?? 0));
 $message = "";
 $messageType = "";
-$availabilitySql = cbFoodAvailabilitySql('mi');
+$storeOrderingSql = cbStoreOrderingSql('s');
+$availabilitySql = 'CASE WHEN (' . cbFoodAvailabilitySql('mi') . ')=1 AND (' . $storeOrderingSql . ')=1 THEN 1 ELSE 0 END';
 
 // Add selected food to session cart
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -55,6 +56,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmt = $pdo->prepare("
                 SELECT
             mi.item_id, mi.store_id, mi.image_path, s.store_name,
+                    s.opens_at,s.closes_at,$storeOrderingSql AS accepting_orders,
                     mi.item_name,
                     mi.description,
                     mi.price,
@@ -81,7 +83,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $currentQty = (int) ($cart[$itemId]["quantity"] ?? 0);
                 $newQty = $currentQty + $quantity;
 
-                if (!$available) {
+                if (!(int) $item['accepting_orders']) {
+                    $message = 'This store is closed. Store hours: ' . cbStoreHoursLabel($item) . '. Your cart is saved.';
+                    $messageType = 'error';
+                } elseif (!$available) {
                     $message = "This food is currently unavailable.";
                     $messageType = "error";
                 } elseif ($newQty > 99) {
@@ -137,6 +142,7 @@ try {
     $menuQuery = $pdo->prepare("
         SELECT
             mi.item_id, mi.store_id, mi.image_path, s.store_name,
+            s.opens_at,s.closes_at,$storeOrderingSql AS accepting_orders,
             mi.item_name,
             mi.description,
             mi.price,
@@ -258,7 +264,7 @@ function foodEmoji($category) {
             <?php foreach ($stores as $store): $id = (int) $store['store_id']; $meal = $kitchenMeals[$id] ?? null; $photo = cbFoodPhotoUrl($meal['image_path'] ?? null); ?>
                 <a href="menu.php?store=<?= $id ?>" class="cb-store-tile kitchen-tab <?= $selectedStore === $id ? 'is-selected' : '' ?>" data-store-name="<?= h($store['store_name']) ?>" <?= $selectedStore === $id ? 'aria-current="true"' : '' ?>>
                     <?php if ($photo): ?><img src="<?= h($photo) ?>" alt="" width="76" height="76" loading="lazy" decoding="async"><?php else: ?><span class="kitchen-all-icon" aria-hidden="true">&#127869;</span><?php endif; ?>
-                    <span class="kitchen-tab-copy"><strong><?= h($store['store_name']) ?></strong><small><?= h($meal['item_name'] ?? 'Explore the menu') ?></small></span>
+                    <span class="kitchen-tab-copy"><strong><?= h($store['store_name']) ?></strong><small><?= h(cbStoreStatusLabel($store)) ?></small></span>
                     <span class="kitchen-tab-check" aria-hidden="true">&#10003;</span>
                 </a>
             <?php endforeach; ?>
@@ -301,7 +307,7 @@ function foodEmoji($category) {
     <div class="menu-results-heading">
         <div><span class="menu-eyebrow">FRESH FROM THE KITCHEN</span><h2><?= h($selectedKitchen['store_name'] ?? ($selectedStore ? 'Kitchen unavailable' : 'Something for every craving')) ?></h2>
         <p><?= h($selectedKitchen['description'] ?? ($selectedStore ? 'Choose another kitchen to explore available food.' : 'Discover meals, snacks, and little treats from your campus kitchens.')) ?></p></div>
-        <span class="menu-available-count"><?= $availableCount ?> available today</span>
+        <span class="menu-available-count"><?= $availableCount ?> available now</span>
     </div>
     <div class="menu-grid" id="menuGrid">
 
@@ -331,6 +337,7 @@ function foodEmoji($category) {
                     </span>
 
                     <span class="cb-food-store"><?= h($item["store_name"]) ?></span>
+                    <small class="cb-store-hours"><?= h(cbStoreHoursLabel($item)) ?></small>
                     <h3><?= h($item["item_name"]) ?></h3>
 
                     <p class="description">
@@ -347,7 +354,7 @@ function foodEmoji($category) {
                         </div>
                     <?php else: ?>
                         <div class="stock unavailable">
-                            ● Unavailable
+                            ● <?= (int) $item['accepting_orders'] ? 'Unavailable' : 'Store closed' ?>
                         </div>
                     <?php endif; ?>
 

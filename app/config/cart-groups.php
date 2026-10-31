@@ -5,7 +5,8 @@ function cbCartCatalog(PDO $pdo, array $cart): array {
     if (!$cart) return [];
     $ids = array_values(array_unique(array_map('intval', array_keys($cart))));
     $stmt = $pdo->prepare('SELECT mi.item_id,mi.item_name,mi.description,mi.image_path,mi.price,c.category_name,
-        ' . cbFoodAvailabilitySql('mi') . ' AS general_available,s.is_open,
+        ' . cbFoodAvailabilitySql('mi') . ' AS general_available,s.is_open,s.opens_at,s.closes_at,
+        ' . cbStoreOrderingSql('s') . ' AS accepting_orders,
         owner.is_active AS owner_active,owner.role_id AS owner_role
         FROM menu_items mi JOIN categories c ON c.category_id=mi.category_id
         JOIN stores s ON s.store_id=mi.store_id JOIN users owner ON owner.user_id=s.staff_user_id
@@ -41,7 +42,7 @@ function cbCartGroups(PDO $pdo, array $cart): array {
         $storeId = $store ? (int) $store['store_id'] : 0;
         if (!isset($groups[$storeId])) {
             $groups[$storeId] = ['store' => $store, 'items' => [], 'quantity' => 0, 'subtotal' => 0,
-                'can_checkout' => $store && (int) $store['is_open'] === 1
+                'can_checkout' => $store && cbStoreAcceptingOrders($store)
                     && (int) $store['staff_active'] === 1 && (int) $store['staff_role'] === 2];
         }
         if ($store) {
@@ -67,9 +68,9 @@ function cbSelectedCheckoutCart(PDO $pdo, array $cart, $requestedStore): array {
     }
     $group = $groups[$storeId];
     // Availability and current prices are revalidated under locks during order placement.
-    if (!$group['store'] || !(int) $group['store']['is_open'] || !(int) $group['store']['staff_active']
+    if (!$group['store'] || !cbStoreAcceptingOrders($group['store']) || !(int) $group['store']['staff_active']
         || (int) $group['store']['staff_role'] !== 2) {
-        throw new RuntimeException('This kitchen is closed or unavailable. Your other store carts are unchanged.');
+        throw new RuntimeException('This kitchen is closed or unavailable. ' . ($group['store'] ? 'Store hours: ' . cbStoreHoursLabel($group['store']) . '. ' : '') . 'Your saved carts are unchanged.');
     }
     return ['store_id' => (int) $storeId, 'items' => $group['items']];
 }

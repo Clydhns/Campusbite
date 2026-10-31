@@ -80,3 +80,4 @@
 @media(max-width:700px) { .cb-store-workspace,.cb-store-grid,.cb-store-fields { grid-template-columns:minmax(0,1fr); } .cb-store-panel,.cb-store-tile { padding:22px; } .cb-student .cb-staff-notice { right:16px; } }
 @media(prefers-reduced-motion:reduce) { .cb-store-tile,.cb-student .cb-staff-notice,.cb-store-panel #food-photo::file-selector-button { transition:none; } .cb-store-tile:hover { transform:none; } }
 @media(prefers-reduced-motion:reduce) { .cb-student .cb-staff-notice[data-auto-dismiss] { animation-timing-function:step-end; } }
+.cb-store-hours { display:block; margin:8px 0; color:#705746; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }

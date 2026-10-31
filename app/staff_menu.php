@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (($_POST['action'] ?? '') === 'save_store') {
             $name = trim((string) ($_POST['store_name'] ?? ''));
             $description = trim((string) ($_POST['store_description'] ?? ''));
+            [$opensAt, $closesAt] = cbValidateStoreHours($_POST['opens_at'] ?? substr($store['opens_at'],0,5), $_POST['closes_at'] ?? substr($store['closes_at'],0,5));
             $acceptGcash = isset($_POST['payment_options_present'])
                 ? isset($_POST['accept_gcash'])
                 : (is_string($_POST['gcash_number'] ?? null) && trim($_POST['gcash_number']) !== '');
@@ -33,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($acceptGcash && $gcash !== ($store['gcash_number'] ?? '') && cbPaymentQrUrl($store['gcash_qr_path'] ?? null) && !$hasQrUpload && !$removeQr) {
                 throw new RuntimeException('Replace or remove your existing QR image when changing the GCash receiving number.');
             }
-            $stmt = $pdo->prepare('UPDATE stores SET store_name=?,description=?,gcash_number=?,is_open=? WHERE store_id=? AND staff_user_id=?');
-            $stmt->execute([$name,$description ?: null,$gcash ?: null,isset($_POST['is_open']) ? 1 : 0,$store['store_id'],$_SESSION['user_id']]);
+            $stmt = $pdo->prepare('UPDATE stores SET store_name=?,description=?,gcash_number=?,is_open=?,opens_at=?,closes_at=? WHERE store_id=? AND staff_user_id=?');
+            $stmt->execute([$name,$description ?: null,$gcash ?: null,isset($_POST['is_open']) ? 1 : 0,$opensAt,$closesAt,$store['store_id'],$_SESSION['user_id']]);
             if (!$acceptGcash && $hasQrUpload) {
                 throw new RuntimeException('Turn on GCash payments before uploading a QR image.');
             }
@@ -137,6 +138,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
 <label for="store-name">Store name</label><input id="store-name" name="store_name" maxlength="100" required value="<?= cbEscape($store['store_name']) ?>">
 <label for="store-description">Description</label><textarea id="store-description" name="store_description" maxlength="255"><?= cbEscape($store['description']) ?></textarea>
+<fieldset class="cb-store-payments"><legend>Store hours</legend>
+<p class="cb-store-help" role="status"><?= cbEscape(cbStoreStatusLabel($store)) ?></p>
+<div class="cb-store-fields"><div><label for="store-opens">Opening time</label><input id="store-opens" name="opens_at" type="time" step="60" required value="<?= cbEscape(is_string($_POST['opens_at'] ?? null) && $error ? $_POST['opens_at'] : substr($store['opens_at'],0,5)) ?>"></div>
+<div><label for="store-closes">Closing time</label><input id="store-closes" name="closes_at" type="time" step="60" required value="<?= cbEscape(is_string($_POST['closes_at'] ?? null) && $error ? $_POST['closes_at'] : substr($store['closes_at'],0,5)) ?>"></div></div>
+<p class="cb-store-help">Daily, in Philippine time. No new orders outside these hours, including water and soft drinks. A closing time earlier than opening means the next morning. Existing orders can still be completed.</p></fieldset>
 <fieldset class="cb-store-payments" id="store-payments">
 <legend>Payment methods</legend>
 <input type="hidden" name="payment_options_present" value="1">
@@ -156,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 </div>
 <p class="cb-store-help" id="store-payment-summary" role="status"><?= $acceptGcash ? 'Cash and GCash are available after saving these settings.' : 'Cash is available. Turn on GCash and enter your receiving number to offer both.' ?></p>
 </fieldset>
-<label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Store open for new orders</label><button class="btn">Save store</button>
+<label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Accept new orders during store hours</label><p class="cb-store-help">Switch this off to pause orders even during opening hours. Switching it on does not override your closing time.</p><button class="btn">Save store</button>
 </form></section>
 <section class="cb-store-panel"><h2><?= $edit['item_id'] ? 'Edit food' : 'Add food' ?></h2>
 <form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_food"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $edit['item_id'] ?>">

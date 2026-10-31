@@ -41,7 +41,7 @@ try {
   // Seed the same Philippine calendar day used by the application connections.
   await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
@@ -58,6 +58,8 @@ try {
     await db.query('INSERT INTO public.users(role_id,id_number,first_name,last_name,email,password_hash) VALUES ($1,$2,$3,$4,$5,$6)',[role,'FIXTURE-'+number,'Fixture',number,email+'@example.invalid',hashResult.stdout]);
   }
   await db.exec("INSERT INTO public.categories(category_name) VALUES ('Rice Meals'); INSERT INTO public.stores(staff_user_id,store_name) VALUES (2,'Fixture Kitchen'),(3,'Other Kitchen'); INSERT INTO public.menu_items(category_id,item_name,price,store_id) VALUES (1,'Fixture Meal',50,1),(1,'Other Meal',60,2); INSERT INTO public.daily_menu(menu_date,item_id,quantity_prepared,quantity_remaining) VALUES (CURRENT_DATE,1,10,10),(CURRENT_DATE,2,10,10);");
+  // Baseline order-flow fixtures stay open around the real test time, including midnight.
+  await db.exec("UPDATE public.stores SET opens_at=((clock_timestamp() AT TIME ZONE 'Asia/Manila')-INTERVAL '8 hours')::time,closes_at=((clock_timestamp() AT TIME ZONE 'Asia/Manila')+INTERVAL '8 hours')::time");
   server=new PGLiteSocketServer({db,host:'127.0.0.1',port:18758,maxConnections:6}); await server.start();
   const reuse=await new Promise((resolve,reject)=>{
     const probe=spawn(php,['-d','extension=php_pdo_pgsql.dll',path.join(root,'tools/tests/connection-reuse.php')],
@@ -690,6 +692,50 @@ try {
   const drinkPlaced=await drinkShopper('checkout.php',{csrf_token:token(drinkCheckout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'No-reset drink fixture'});
   check(drinkPlaced.status===302 && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[coke.item_id])).rows.length===0,
     'Soft drinks pass menu, cart and checkout validation without a daily availability record');
+  const hoursPage=await staff('staff_menu.php');
+  check(hoursPage.html.includes('name="opens_at" type="time"') && hoursPage.html.includes('name="closes_at" type="time"'),
+    'Staff can edit their daily opening and closing times with Philippine-time guidance');
+  const previousHours=(await db.query('SELECT opens_at,closes_at FROM stores WHERE store_id=1')).rows[0];
+  const settings={action:'save_store',csrf_token:token(hoursPage.html),store_name:'Fixture Kitchen',store_description:'',payment_options_present:'1',is_open:'1'};
+  await staff('staff_menu.php',{...settings,opens_at:'06:00',closes_at:'06:00'});
+  assert.deepEqual((await db.query('SELECT opens_at,closes_at FROM stores WHERE store_id=1')).rows[0],previousHours);
+  await staff('staff_menu.php',{...settings,csrf_token:'invalid',opens_at:'06:00',closes_at:'18:00'});
+  assert.deepEqual((await db.query('SELECT opens_at,closes_at FROM stores WHERE store_id=1')).rows[0],previousHours);
+  await student('staff_menu.php',{...settings,opens_at:'06:00',closes_at:'18:00'});
+  assert.deepEqual((await db.query('SELECT opens_at,closes_at FROM stores WHERE store_id=1')).rows[0],previousHours);
+  check(true,'Invalid/equal hours, invalid CSRF and student requests cannot change store schedules');
+  const hoursShopper=client(); await signin(hoursShopper,'student@example.invalid');
+  const hoursMenu=await hoursShopper('menu.php?store=1');
+  await hoursShopper('menu.php?store=1',{csrf_token:token(hoursMenu.html),item_id:String(coke.item_id),quantity:'1'});
+  const beforeClosing=await hoursShopper('checkout.php?store=1');
+  const beforeOrders=Number((await db.query('SELECT COUNT(*) AS n FROM orders')).rows[0].n);
+  // Set a valid one-hour window safely away from now, without changing the host clock.
+  const closedHours=(await db.query("SELECT to_char(((clock_timestamp() AT TIME ZONE 'Asia/Manila')+INTERVAL '4 hours')::time,'HH24:MI') AS opens,to_char(((clock_timestamp() AT TIME ZONE 'Asia/Manila')+INTERVAL '5 hours')::time,'HH24:MI') AS closes")).rows[0];
+  await staff('staff_menu.php',{...settings,opens_at:closedHours.opens,closes_at:closedHours.closes});
+  const closedStore=(await db.query('SELECT is_open,opens_at,closes_at FROM stores WHERE store_id=1')).rows[0];
+  check(Number(closedStore.is_open)===1 && closedStore.opens_at.startsWith(closedHours.opens)
+    && closedStore.closes_at.startsWith(closedHours.closes), 'Owning staff saves custom store hours independently of the manual open switch');
+  const closedMenu=await hoursShopper('menu.php?store=1');
+  check(closedMenu.html.includes('Store closed') && closedMenu.html.includes('daily (Philippine time)')
+    && closedMenu.html.includes(coke.name), 'Closed kitchens still show their menus, prices and store hours, including no-reset drinks');
+  const closedAdd=await hoursShopper('menu.php?store=1',{csrf_token:token(closedMenu.html),item_id:String(coke.item_id),quantity:'1'});
+  check(closedAdd.html.includes('This store is closed.'), 'Closed-store water and soft drinks cannot be added even through a direct POST');
+  for(const method of ['Cash','GCash']) {
+    await hoursShopper('checkout.php',{csrf_token:token(beforeClosing.html),store_id:'1',action:'place_order',payment_method:method});
+  }
+  check(Number((await db.query('SELECT COUNT(*) AS n FROM orders')).rows[0].n)===beforeOrders,
+    'A checkout opened before closing cannot place either a Cash or GCash order after closing');
+  await assert.rejects(db.query("INSERT INTO orders(order_number,student_id,store_id,total_amount,order_datetime) VALUES ('CLOSED-DIRECT',4,1,50,CURRENT_TIMESTAMP-INTERVAL '1 day')"));
+  check(true,'The database also rejects new closed-store orders, even with a forged earlier order time');
+  const savedClosed=await hoursShopper('cart.php');
+  check(savedClosed.html.includes('data-cart-store="1"') && savedClosed.html.includes('Checkout unavailable'),
+    'Closing blocks checkout without deleting the customer\'s saved cart');
+  const oldStatus=(await db.query('SELECT status_id FROM orders WHERE order_id=$1',[cashOrderId])).rows[0].status_id;
+  const existingAfterHours=await hoursShopper('orders.php');
+  check(existingAfterHours.status===200 && (await staff('staff_dashboard.php')).status===200
+    && (await db.query('SELECT status_id FROM orders WHERE order_id=$1',[cashOrderId])).rows[0].status_id===oldStatus,
+    'Closing leaves existing order history and staff order management intact');
+  await db.query('UPDATE stores SET opens_at=$1,closes_at=$2 WHERE store_id=1',[previousHours.opens_at,previousHours.closes_at]);
   const switchSignup=await separateCarts('register.php');
   await separateCarts('register.php',{...signup,csrf_token:token(switchSignup.html),id_number:'FIXTURE-SWITCH',email:'switch@example.invalid',first_name:'Switch'});
   const switchedCart=await separateCarts('cart.php');

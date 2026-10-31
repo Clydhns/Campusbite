@@ -147,10 +147,12 @@ $recentOrders = [];
 */
 try {
 
-    $availabilitySql = cbFoodAvailabilitySql('mi');
+    $storeOrderingSql = cbStoreOrderingSql('s');
+    $availabilitySql = 'CASE WHEN (' . cbFoodAvailabilitySql('mi') . ')=1 AND (' . $storeOrderingSql . ')=1 THEN 1 ELSE 0 END';
     $menuStmt = $pdo->prepare("
         SELECT
             mi.item_id, mi.store_id, mi.image_path, s.store_name,
+            $storeOrderingSql AS accepting_orders,
             mi.item_name,
             mi.description,
             mi.price,
@@ -182,7 +184,7 @@ try {
     $menuItems = $menuStmt->fetchAll();
     foreach ($menuItems as &$item) {
         $item['dashboard_available'] = (int) $item['is_available'] === 1;
-        $item['dashboard_status'] = $item['dashboard_available'] ? 'Available' : 'Currently unavailable';
+        $item['dashboard_status'] = !(int) $item['accepting_orders'] ? 'Store closed' : ($item['dashboard_available'] ? 'Available' : 'Currently unavailable');
     }
     unset($item);
 
@@ -1003,7 +1005,7 @@ function getStatusClass($status)
                 <?php foreach ($stores as $store): ?>
                     <a class="cb-store-tile cb-kitchen-tile" href="menu.php?store=<?= (int) $store['store_id'] ?>">
                         <?php if (isset($storePhotos[$store['store_id']])): ?><img class="cb-kitchen-photo" src="<?= cbEscape($storePhotos[$store['store_id']]) ?>" alt="" loading="lazy" width="160" height="160"><?php endif; ?>
-                        <div><span class="cb-store-kicker">CAMPUS STORE</span><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') ?></p><span class="cb-kitchen-link">Browse menu &rarr;</span></div>
+                        <div><span class="cb-store-kicker">CAMPUS STORE</span><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') ?></p><p class="cb-store-hours"><?= cbEscape(cbStoreStatusLabel($store)) ?></p><span class="cb-kitchen-link">Browse menu &rarr;</span></div>
                     </a>
                 <?php endforeach; ?>
                 <?php if (!$stores): ?><p>No stores are open right now.</p><?php endif; ?>
