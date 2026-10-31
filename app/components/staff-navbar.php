@@ -2,12 +2,12 @@
 $staffNavigationPage = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $staffNavigationName = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? ''));
 $staffNavigationCaption = $store['store_name'] ?? $staffNavigationName;
-$staffNavigationProfile = $staffNavigationPage === 'staff_profile.php'
-    || ($staffNavigationPage === 'staff_menu.php' && !empty($settingsView));
+$staffNavigationSettings = $staffNavigationPage === 'staff_menu.php' && !empty($settingsView);
 $staffNavigationLinks = [
     ['staff_dashboard.php', 'Dashboard', $staffNavigationPage === 'staff_dashboard.php'],
-    ['staff_menu.php', 'Menu', $staffNavigationPage === 'staff_menu.php' && !$staffNavigationProfile],
-    ['staff_menu.php?view=settings', 'Store Profile', $staffNavigationProfile],
+    ['staff_menu.php', 'Menu', $staffNavigationPage === 'staff_menu.php' && !$staffNavigationSettings],
+    ['staff_menu.php?view=settings', 'Store Settings', $staffNavigationSettings],
+    ['staff_profile.php', 'Store Profile', $staffNavigationPage === 'staff_profile.php'],
     ['logout.php', 'Logout', false],
 ];
 ?>

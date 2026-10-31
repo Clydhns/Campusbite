@@ -450,23 +450,25 @@ try {
   check(true,'Repeating cancellation cannot change legacy serving counts');
   const staff=client(); await signin(staff,'staff@example.invalid');
   for(const route of ['staff_dashboard.php','staff_menu.php','staff_profile.php']) assert.equal((await staff(route)).status,200);
-  for(const [route,active] of [['staff_dashboard.php','Dashboard'],['staff_menu.php','Menu'],['staff_menu.php?view=settings','Store Profile'],['staff_profile.php','Store Profile']]) {
+  for(const [route,active] of [['staff_dashboard.php','Dashboard'],['staff_menu.php','Menu'],['staff_menu.php?view=settings','Store Settings'],['staff_profile.php','Store Profile']]) {
     const page=await staff(route);
     const navigation=page.html.match(/<nav\b[^>]*aria-label="Store navigation"[\s\S]*?<\/nav>/)?.[0] || '';
     assert.ok(navigation.includes('Store workspace') && !navigation.includes('My Store') && !navigation.includes('My Profile'));
-    assert.ok(navigation.includes('href="staff_menu.php"') && navigation.includes('href="staff_menu.php?view=settings"'));
+    assert.ok(navigation.includes('href="staff_menu.php"') && navigation.includes('href="staff_menu.php?view=settings"')
+      && navigation.includes('href="staff_profile.php"'));
     assert.equal((navigation.match(/aria-current="page"/g) || []).length,1);
     assert.ok(navigation.includes('aria-current="page">'+active+'</a>'));
   }
-  check(true,'Shared store navbar has Dashboard, Menu and Store Profile with one correct active item on every store page');
+  check(true,'Shared navbar separates Menu, Store Settings and Store Profile with one correct active item on every store page');
   const storeDashboard=await staff('staff_dashboard.php');
   const storeProfile=await staff('staff_menu.php?view=settings');
   const accountDetails=await staff('staff_profile.php');
   check(storeDashboard.html.includes('Store Dashboard') && !storeDashboard.html.includes('Staff Dashboard')
-    && storeProfile.html.includes('href="staff_profile.php">Account details</a>')
-    && accountDetails.html.includes('Store account details.') && accountDetails.html.includes('name="current_password"')
-    && accountDetails.html.includes('Back to Store Profile'),
-    'Store dashboard branding and Store Profile retain access to password-protected personal account editing');
+    && storeProfile.html.includes('id="store-settings-title">Store Settings</h2>')
+    && !storeProfile.html.includes('>Account details</a>')
+    && accountDetails.html.includes('<h1>Store Profile</h1>') && accountDetails.html.includes('name="current_password"')
+    && accountDetails.html.includes('Back to Store Settings'),
+    'Store Settings and the password-protected Store Profile have distinct titles and direct navigation');
   const store=await staff('staff_menu.php');
   const food=await staff('staff_menu.php',{csrf_token:token(store.html),action:'save_food',item_id:'0',item_name:'New Fixture Meal',description:'Test fixture',price:'75',category_id:'1',is_available:'1'});
   assert.equal(food.status,302);
@@ -729,7 +731,10 @@ try {
     'Food validation errors keep the editor open and retain entered values');
   const hoursPage=await staff('staff_menu.php?view=settings');
   check(hoursPage.html.includes('class="cb-store-profile-form"')
-    && (hoursPage.html.match(/<fieldset\b[^>]*cb-store-profile-column/g) || []).length===2
+    && (hoursPage.html.match(/<section\b[^>]*cb-store-profile-column/g) || []).length===2
+    && hoursPage.html.includes('<h3 id="store-details-title">Store details</h3>')
+    && hoursPage.html.includes('<h3 id="payment-methods-title">Payment methods</h3>')
+    && !hoursPage.html.includes('<legend>')
     && hoursPage.html.includes('class="cb-store-profile-actions"')
     && (hoursPage.html.match(/value="save_store"/g) || []).length===1
     && hoursPage.html.indexOf('name="is_open"') < hoursPage.html.indexOf('id="store-payments"'),

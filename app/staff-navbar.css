@@ -45,7 +45,8 @@ nav.cb-staff-navbar .cb-staff-caption {
     font-weight: 700;
     line-height: 1.4;
 }
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
+    nav.navbar.cb-staff-navbar { flex-direction: column; }
     nav.navbar.cb-staff-navbar { align-items: stretch; }
     nav.cb-staff-navbar .cb-site-nav-pill { align-self: center; }
 }

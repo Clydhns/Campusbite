@@ -30,7 +30,7 @@
 .cb-store-settings > p { margin:0 0 26px; color:#796554; font-size:14px; line-height:1.7; }
 .cb-store-profile-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:stretch; gap:24px; }
 .cb-store-profile-form > .cb-store-profile-column { min-width:0; margin:0; padding:24px; background:white; align-self:stretch; }
-.cb-store-profile-form .cb-store-profile-column > legend { padding:0 8px; color:#3b2a20; font-size:20px; font-weight:900; }
+.cb-store-profile-form .cb-store-profile-column > h3 { margin:0 0 20px; color:#3b2a20; font-size:20px; font-weight:900; }
 .cb-store-profile-column > label:first-of-type { margin-top:8px; }
 .cb-store-profile-actions { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; padding-top:20px; border-top:1px solid #f1d5bf; }
 .cb-store-profile-actions p { margin:0; color:#796554; font-size:13px; }
@@ -82,7 +82,7 @@
 .cb-food-delete-dialog button:disabled { opacity:.6; cursor:wait; }
 .cb-store-help { font-size:12px !important; }
 .cb-store-payments { min-width:0; margin:26px 0; padding:18px; border:1px solid #F1D5BF; border-radius:16px; background:#fffcf9; scroll-margin-top:120px; }
-.cb-store-payments legend { padding:0 8px; color:#3B2A20; font-size:16px; font-weight:900; }
+.cb-store-payments > h4 { margin:0 0 16px; color:#3B2A20; font-size:16px; font-weight:900; }
 .cb-store-payments > .cb-store-help { margin:4px 0 16px; }
 .cb-payment-method { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:14px; border:1px solid #F1D5BF; border-radius:12px; background:white; }
 .cb-payment-method p { margin:3px 0 0; }
