@@ -148,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         mi.item_id,
                         mi.item_name,
                         mi.price,
-                        mi.is_available AS general_available,
+                        " . cbFoodAvailabilitySql('mi') . " AS general_available,
                         s.is_open,
                         owner.is_active AS owner_active,
                         owner.role_id AS owner_role
@@ -236,7 +236,7 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
                 mi.description,
                 mi.image_path,
                 mi.price,
-                mi.is_available AS general_available,
+                " . cbFoodAvailabilitySql('mi') . " AS general_available,
                 c.category_name,
                 s.is_open,
                 owner.is_active AS owner_active,

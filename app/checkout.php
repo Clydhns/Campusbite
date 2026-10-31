@@ -185,7 +185,7 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
                         mi.item_name,
                         mi.description,
                         mi.price,
-                        mi.is_available,
+                        " . cbFoodAvailabilitySql('mi') . " AS is_available,
                         c.category_name
                     FROM menu_items mi
                     LEFT JOIN categories c

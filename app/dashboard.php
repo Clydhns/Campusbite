@@ -147,13 +147,14 @@ $recentOrders = [];
 */
 try {
 
+    $availabilitySql = cbFoodAvailabilitySql('mi');
     $menuStmt = $pdo->prepare("
         SELECT
             mi.item_id, mi.store_id, mi.image_path, s.store_name,
             mi.item_name,
             mi.description,
             mi.price,
-            mi.is_available,
+            $availabilitySql AS is_available,
             c.category_name
 
         FROM menu_items mi

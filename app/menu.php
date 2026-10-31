@@ -31,6 +31,7 @@ $stores = cbVisibleStores($pdo);
 $selectedStore = max(0, (int) ($_GET["store"] ?? 0));
 $message = "";
 $messageType = "";
+$availabilitySql = cbFoodAvailabilitySql('mi');
 
 // Add selected food to session cart
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -58,7 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     mi.item_name,
                     mi.description,
                     mi.price,
-                    mi.is_available AS general_available,
+                    $availabilitySql AS general_available,
                     c.category_name
                 FROM menu_items mi
                 JOIN stores s ON s.store_id=mi.store_id
@@ -132,7 +133,7 @@ try {
             mi.item_name,
             mi.description,
             mi.price,
-            mi.is_available AS general_available,
+            $availabilitySql AS general_available,
             c.category_name
         FROM menu_items mi
                 JOIN stores s ON s.store_id=mi.store_id
@@ -164,7 +165,7 @@ try {
         JOIN categories c ON c.category_id=mi.category_id
         JOIN stores s ON s.store_id=mi.store_id
         JOIN users u ON u.user_id=s.staff_user_id
-        WHERE mi.archived_at IS NULL AND mi.is_available=1 AND s.is_open=1 AND u.is_active=1 AND u.role_id=2
+        WHERE mi.archived_at IS NULL AND ($availabilitySql)=1 AND s.is_open=1 AND u.is_active=1 AND u.role_id=2
         ORDER BY s.store_name, c.category_name, mi.item_name")->fetchAll(PDO::FETCH_ASSOC);
     $kitchenMeals = cbStoreMealHighlights($highlightFoods);
 } catch (PDOException $e) {

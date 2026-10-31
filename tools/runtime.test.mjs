@@ -153,17 +153,37 @@ try {
   check(Number((await db.query('SELECT is_available FROM public.menu_items WHERE item_id=1')).rows[0].is_available)===0,
     'Repeating an availability request is idempotent rather than flipping the food back on');
   await setAvailability(1,1);
-  for(const change of [
-    'UPDATE public.daily_menu SET is_available=0 WHERE item_id=1',
-    'UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1',
-    'UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=1'
-  ]) {
-    await db.exec(change);
-    const shown=await student('dashboard.php');
-    check(dashboardCard(shown.html,1).includes('data-available="true"') && !/\d+\s+available today/.test(dashboardCard(shown.html,1)),
-      'Legacy daily stock does not override the switch: '+change);
-  }
+  await db.exec('UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1');
+  const shown=await student('dashboard.php');
+  check(dashboardCard(shown.html,1).includes('data-available="true"') && !/\d+\s+available today/.test(dashboardCard(shown.html,1)),
+    'Zero servings do not limit a food explicitly enabled for today');
   await db.exec('UPDATE public.daily_menu SET quantity_remaining=10 WHERE item_id=1');
+  await db.exec('UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=1');
+  const expiredHome=await student('dashboard.php');
+  const expiredStaff=await availabilityStaff('staff_menu.php?edit=1');
+  const expiredMenu=await student('menu.php?store=1');
+  const expiredAdd=await student('menu.php?store=1',{csrf_token:token(expiredMenu.html),item_id:'1',quantity:'1'});
+  check(dashboardCard(expiredHome.html,1).includes('data-available="false"')
+    && /data-item-id="1"[\s\S]*?aria-checked="false"/.test(expiredStaff.html)
+    && expiredAdd.html.includes('This food is currently unavailable.'),
+    'Yesterday\'s availability expires on Home, staff switches and menu add requests');
+  const enabledToday=await setAvailability(1,1);
+  const expectedExpiry=(await db.query("SELECT EXTRACT(EPOCH FROM ((CURRENT_DATE+1)::timestamp AT TIME ZONE 'Asia/Manila'))*1000 AS expires")).rows[0].expires;
+  const dailyRows=(await db.query('SELECT menu_date,is_available,quantity_remaining FROM public.daily_menu WHERE item_id=1 ORDER BY menu_date')).rows;
+  check(JSON.parse(enabledToday.html).available===true && JSON.parse(enabledToday.html).available_until===Number(expectedExpiry)
+    && dailyRows.length===2 && Number(dailyRows[0].quantity_remaining)===10 && Number(dailyRows[1].quantity_remaining)===0,
+    'Staff can enable a new day without serving counts or altering yesterday\'s quantities');
+  const midnight=(await db.query("SELECT (TIMESTAMPTZ '2026-10-31 15:59:59+00' AT TIME ZONE 'Asia/Manila')::date::text AS before, (TIMESTAMPTZ '2026-10-31 16:00:00+00' AT TIME ZONE 'Asia/Manila')::date::text AS after")).rows[0];
+  check(midnight.before==='2026-10-31' && midnight.after==='2026-11-01',
+    'The daily boundary is Philippine midnight, not midnight UTC');
+  const beverages=(await db.query("INSERT INTO public.categories(category_name) VALUES ('Beverages') RETURNING category_id")).rows[0];
+  const juice=(await db.query("INSERT INTO public.menu_items(category_id,item_name,price,store_id) VALUES ($1,'Cup of Juice',20,1) RETURNING item_id",[beverages.category_id])).rows[0];
+  await setAvailability(juice.item_id,1);
+  check(dashboardCard((await student('dashboard.php')).html,juice.item_id).includes('data-available="true"'),
+    'Staff can enable cups of juice for today using the same switch');
+  await db.query('UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=$1',[juice.item_id]);
+  check(dashboardCard((await student('dashboard.php')).html,juice.item_id).includes('data-available="false"'),
+    'Daily expiry applies to drinks as well as meals');
   await db.exec('UPDATE public.menu_items SET store_id=1 WHERE item_id=2; UPDATE public.menu_items SET is_available=0 WHERE item_id=1');
   const alternative=await student('dashboard.php');
   check(heroSection(alternative.html).includes('Other Meal') && !heroSection(alternative.html).includes('Fixture Meal')
@@ -223,12 +243,17 @@ try {
   }
   check(checkout.html.includes('name="store_id" value="1"') && checkout.html.includes('Fixture Meal') && !checkout.html.includes('Other Meal'),
     'Checkout displays only the selected kitchen and carries its store ID through submission');
+  await db.exec('UPDATE public.daily_menu SET is_available=0 WHERE item_id=1 AND menu_date=CURRENT_DATE');
+  const expiredCheckout=await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:''});
+  check(expiredCheckout.html.includes('is currently unavailable') && (await db.query('SELECT order_id FROM public.orders')).rows.length===0,
+    'An old checkout page cannot order food that is no longer enabled for the current day');
+  await setAvailability(1,1);
   const placed=await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Fixture only',item_id:'2',price:'0.01'});
   assert.equal(placed.status,302,placed.html.slice(0,200));
   const order=(await db.query('SELECT order_id,order_number,total_amount,status_id FROM public.orders')).rows[0];
   check(order && /^ORD-\d{8}-001$/.test(order.order_number) && Number(order.total_amount)===100,'Checkout generates an order number, current-price total and atomic order records');
-  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),10);
-  check(true,'Checkout succeeds without today\'s daily-menu record and leaves legacy serving counts untouched');
+  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
+  check(true,'Checkout uses today\'s availability without decrementing legacy serving counts');
   const retained=await student('cart.php');
   check(retained.html.includes('data-cart-store="2"') && !retained.html.includes('data-cart-store="1"')
     && Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=2')).rows[0].quantity_remaining)===10,
@@ -245,10 +270,10 @@ try {
   const cancelled=await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Fixture cancellation'});
   assert.equal(cancelled.status,200);
   assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[order.order_id])).rows[0].status_id),5);
-  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),10);
+  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
   check(true,'Customer cancellation updates the order without changing legacy serving counts');
   await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Repeat'});
-  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),10);
+  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
   check(true,'Repeating cancellation cannot change legacy serving counts');
   const staff=client(); await signin(staff,'staff@example.invalid');
   for(const route of ['staff_dashboard.php','staff_menu.php','staff_profile.php']) assert.equal((await staff(route)).status,200);
@@ -256,8 +281,9 @@ try {
   const food=await staff('staff_menu.php',{csrf_token:token(store.html),action:'save_food',item_id:'0',item_name:'New Fixture Meal',description:'Test fixture',price:'75',category_id:'1',is_available:'1'});
   assert.equal(food.status,302);
   const newFood=(await db.query("SELECT item_id FROM public.menu_items WHERE item_name='New Fixture Meal' AND store_id=1")).rows[0];
-  check(newFood && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[newFood.item_id])).rows.length===0,
-    'Staff can add available food without entering a count or creating daily stock');
+  const newDay=(await db.query('SELECT is_available,quantity_prepared,quantity_remaining FROM public.daily_menu WHERE item_id=$1 AND menu_date=CURRENT_DATE',[newFood.item_id])).rows[0];
+  check(newFood && newDay && Number(newDay.is_available)===1 && Number(newDay.quantity_prepared)===0 && Number(newDay.quantity_remaining)===0,
+    'Staff can add food enabled for today without entering serving counts');
   const fallbackOff=await staff('staff_menu.php',{action:'set_food_availability',item_id:String(newFood.item_id),available:'0',csrf_token:token(store.html)});
   const fallbackPage=await staff('staff_menu.php');
   check(fallbackOff.status===302 && fallbackPage.html.includes('New Fixture Meal is now unavailable.'),
@@ -296,6 +322,8 @@ try {
     const page=await admin(route); assert.equal(page.status,200); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Admin dashboard, account management, stores and profile render');
+  check((await admin('admin_stores.php?store=1')).html.includes('Cup of Juice</h3><p>Beverages &middot; Unavailable'),
+    'Admin food labels use the same daily expiry for drinks as staff and students');
   const adminUsers=await admin('admin_users.php');
   await admin('admin_users.php',{csrf_token:token(adminUsers.html),action:'create_staff',id_number:'FIXTURE-NEWSTAFF',first_name:'New',last_name:'Fixture',email:'newstaff@example.invalid',password:'Fixture-Only-Password9!',confirm_password:'Fixture-Only-Password9!',contact_number:''});
   check((await db.query("SELECT s.store_id FROM public.stores s JOIN public.users u ON u.user_id=s.staff_user_id WHERE u.email='newstaff@example.invalid'")).rows.length===1,'Creating staff also creates its own store using RETURNING');

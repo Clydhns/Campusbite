@@ -2,6 +2,7 @@
 require_once __DIR__ . '/food-photos.php';
 require_once __DIR__ . '/payment-photos.php';
 require_once __DIR__ . '/payment-receipts.php';
+require_once __DIR__ . '/food-availability.php';
 function cbEscape($value): string {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
@@ -118,6 +119,7 @@ function cbSaveFood(PDO $pdo, int $storeId, array $input): int {
         $stmt->execute([$storeId,$category,$name,$description ?: null,$price,$available]);
         $itemId = (int) $stmt->fetchColumn();
     }
+    cbRecordDailyFoodAvailability($pdo, $itemId, $available);
     return $itemId;
 }
 
@@ -128,5 +130,6 @@ function cbSetFoodAvailability(PDO $pdo, int $storeId, int $itemId, int $availab
     $stmt->execute([$available,$itemId,$storeId]);
     $food = $stmt->fetch();
     if (!$food) throw new RuntimeException('This food no longer exists or does not belong to your store.');
+    $food['availability_date'] = cbRecordDailyFoodAvailability($pdo, $itemId, $available);
     return $food;
 }

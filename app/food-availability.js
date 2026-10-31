@@ -3,6 +3,8 @@
     const notice = document.getElementById('food-availability-notice');
     if (!workspace || !notice) return;
     let noticeTimer;
+    let expiryTimer;
+    let availableUntil = Number(document.body.dataset.availabilityUntil);
     function showNotice(message, failed = false) {
         clearTimeout(noticeTimer);
         notice.classList.toggle('error-message', failed);
@@ -15,10 +17,30 @@
         clearTimeout(noticeTimer);
         notice.hidden = true;
     });
+    function expireAvailability() {
+        if (!availableUntil || Date.now() < availableUntil) return;
+        availableUntil = 0;
+        document.querySelectorAll('[data-food-availability]').forEach(form => {
+            form.querySelector('button').setAttribute('aria-checked', 'false');
+            form.querySelector('[data-availability-label]').textContent = 'Unavailable';
+            form.querySelector('[name="available"]').value = '1';
+        });
+        const editor = document.getElementById('food-availability');
+        if (editor) editor.checked = false;
+        showNotice('A new canteen day has started. Switch on the food and drinks you are selling today.');
+    }
+    function scheduleExpiry() {
+        clearTimeout(expiryTimer);
+        if (availableUntil) expiryTimer = setTimeout(expireAvailability, Math.max(0, availableUntil - Date.now()));
+    }
+    scheduleExpiry();
+    window.addEventListener('focus', expireAvailability);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) expireAvailability(); });
     document.addEventListener('submit', async event => {
         const form = event.target;
         if (!form.matches('[data-food-availability]') || event.defaultPrevented) return;
         event.preventDefault();
+        expireAvailability();
         const button = form.querySelector('button');
         if (button.disabled) return;
         const target = form.querySelector('[name="available"]');
@@ -38,9 +60,16 @@
             const result = await response.json();
             if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to change availability.');
             if (result.workspace !== workspace || result.item_id !== Number(form.dataset.itemId)
-                || typeof result.available !== 'boolean' || result.available !== requested) {
+                || typeof result.available !== 'boolean' || result.available !== requested
+                || !Number.isFinite(result.available_until) || result.available_until <= 0
+                || (availableUntil && result.available_until < availableUntil)) {
                 throw new Error('The menu changed. Refresh the page before trying again.');
             }
+            if (availableUntil && availableUntil !== result.available_until) {
+                availableUntil = 1;
+                expireAvailability();
+            }
+            availableUntil = result.available_until;
             button.setAttribute('aria-checked', String(result.available));
             form.querySelector('[data-availability-label]').textContent = result.available ? 'Available' : 'Unavailable';
             target.value = result.available ? '0' : '1';
@@ -49,6 +78,8 @@
                 editor.querySelector('[name="is_available"]').checked = result.available;
             }
             showNotice(result.message);
+            expireAvailability();
+            scheduleExpiry();
         } catch (error) {
             showNotice(error.name === 'AbortError'
                 ? 'The request timed out. Refresh to check the saved availability before trying again.'

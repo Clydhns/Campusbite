@@ -3,6 +3,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once "config/connection.php";
+require_once __DIR__ . '/config/food-availability.php';
 
 // Only Administrator can access this page
 if (
@@ -52,8 +53,8 @@ try {
     // Available menu items
     $stmt = $pdo->query("
         SELECT COUNT(*)
-        FROM menu_items
-        WHERE is_available = 1
+        FROM menu_items m
+        WHERE m.archived_at IS NULL AND (" . cbFoodAvailabilitySql('m') . ")=1
     ");
     $availableMenuItems = (int) $stmt->fetchColumn();
 
