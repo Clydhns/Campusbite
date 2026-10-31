@@ -23,39 +23,22 @@ header('Cache-Control: no-store');
 </header>
 <main id="main">
     <section class="intro" aria-labelledby="intro-title">
-        <div class="intro-copy">
         <p class="eyebrow">An independent student project</p>
         <h1 id="intro-title">Your next bite.<br><span>A better campus break.</span></h1>
-        <p class="intro-description">Explore campus kitchens, order your favorites, and follow your pickup. A little less queue. A little more time for you.</p>
+        <p class="intro-description">Explore campus kitchens, order your favorites, and track your pickup. All in one place.</p>
         <div class="actions">
-            <a class="button" href="register.php">Create an account <span aria-hidden="true">&rarr;</span></a>
-            <a class="text-link" href="login.php">Sign in</a>
+            <a class="button" href="register.php">Create an account</a>
+            <a class="text-link" href="#about">How it works <span aria-hidden="true">&darr;</span></a>
         </div>
-        <p class="account-hint">New here? Create your own CampusBite account to get started.</p>
         <p class="identity-note">Not an official school portal. CampusBite accounts are separate from school, email, and GCash accounts. <a href="#data-use">Before you register &rarr;</a></p>
-        </div>
-        <aside class="flow-preview" aria-labelledby="flow-title">
-            <div class="flow-heading">
-                <p class="eyebrow">How it works</p>
-                <span class="flow-mark" aria-hidden="true">CB</span>
-            </div>
-            <h2 id="flow-title">Good food.<br>Simple pickup.</h2>
-            <ol class="flow-steps">
-                <li><span class="flow-number" aria-hidden="true">01</span><div><h3>Find your kitchen</h3><p>Explore food, prices, and availability.</p></div></li>
-                <li><span class="flow-number" aria-hidden="true">02</span><div><h3>Make it your order</h3><p>Check out one kitchen at a time.</p></div></li>
-                <li><span class="flow-number" aria-hidden="true">03</span><div><h3>Follow your pickup</h3><p>Track your order as the store prepares it.</p></div></li>
-            </ol>
-            <a class="flow-link" href="#about">Get to know CampusBite <span aria-hidden="true">&darr;</span></a>
-        </aside>
     </section>
     <section id="about" class="section" aria-labelledby="about-title">
-        <p class="eyebrow">What this website does</p>
-        <h2 id="about-title">One store. One order. One pickup.</h2>
-        <div class="steps">
-            <article><span class="step-number" aria-hidden="true">01</span><h3>Browse a store</h3><p>View food items, prices, and availability from participating stores.</p></article>
-            <article><span class="step-number" aria-hidden="true">02</span><h3>Place your order</h3><p>Keep separate carts for different stores. Check out one kitchen at a time and review that store's payment details.</p></article>
-            <article><span class="step-number" aria-hidden="true">03</span><h3>Track your pickup</h3><p>Follow your order status as the store prepares your food.</p></article>
-        </div>
+        <h2 id="about-title">A simpler way to take a break.</h2>
+        <ol class="steps">
+            <li><span class="step-number" aria-hidden="true">01</span><h3>Choose a kitchen</h3><p>Browse food, prices, and availability from campus stores.</p></li>
+            <li><span class="step-number" aria-hidden="true">02</span><h3>Place your order</h3><p>Save separate carts and check out one kitchen at a time.</p></li>
+            <li><span class="step-number" aria-hidden="true">03</span><h3>Follow your pickup</h3><p>Track your order as the store prepares your food.</p></li>
+        </ol>
     </section>
     <section id="data-use" class="section data-use" aria-labelledby="data-title">
         <div><p class="eyebrow">Before you register</p><h2 id="data-title">Know what you share.</h2></div>

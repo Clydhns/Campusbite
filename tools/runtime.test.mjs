@@ -99,17 +99,19 @@ try {
   check(introduction.status===200 && introduction.html.includes('An independent student project')
     && introduction.html.includes('id="data-use"') && !introduction.html.includes('<form'),
     'Public home explains project identity and data use without requesting credentials');
-  const flow=introduction.html.match(/<ol class="flow-steps">([\s\S]*?)<\/ol>/)?.[1] || '';
+  const flow=introduction.html.match(/<ol class="steps">([\s\S]*?)<\/ol>/)?.[1] || '';
   check((flow.match(/<li>/g) || []).length===3
-    && introduction.html.includes('aria-labelledby="flow-title"')
-    && introduction.html.includes('id="flow-title"')
+    && (introduction.html.match(/<ol\b/g) || []).length===1
+    && !introduction.html.includes('flow-preview')
+    && introduction.html.includes('aria-labelledby="about-title"')
+    && introduction.html.includes('id="about-title"')
     && introduction.html.includes('href="register.php"')
     && introduction.html.includes('href="login.php"')
     && introduction.html.includes('id="about"')
     && introduction.html.includes('href="#data-use"')
     && introduction.html.includes('Not an official school portal.')
     && introduction.html.includes('Never enter your school-account password'),
-    'Landing-page redesign retains sign-up, sign-in, project notices and a labeled three-step pickup guide');
+    'Minimal landing page retains account links and project notices with one non-duplicated three-step pickup guide');
   const publicLogin=await anon('login.php');
   check(publicLogin.csp?.includes("form-action 'self'") && publicLogin.csp?.includes("base-uri 'self'")
     && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
