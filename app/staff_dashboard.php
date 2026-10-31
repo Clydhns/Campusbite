@@ -68,7 +68,7 @@ if (
                     o.order_number,
                     o.status_id,
                     p.payment_id,
-                    p.payment_status, p.method, p.reference_number, p.receipt_path, p.receipt_submitted_at
+                    p.payment_status, p.method, p.reference_number, p.receipt_path, p.receipt_submitted_at, p.payment_rejected_at
                 FROM orders o
                 INNER JOIN payments p
                     ON o.order_id = p.order_id
@@ -90,9 +90,10 @@ if (
                 throw new Exception("Order or payment was not found.");
             }
 
-            if ((int) $order["status_id"] !== 1) {
+            $paymentStatuses = $order['method'] === 'Cash' ? [1,2,3] : [1];
+            if (!in_array((int) $order['status_id'], $paymentStatuses, true)) {
                 throw new Exception(
-                    "Only pending orders can be confirmed."
+                    "Only active cash orders or pending GCash orders can have payment confirmed."
                 );
             }
 
@@ -101,6 +102,7 @@ if (
                     "This payment is already confirmed."
                 );
             }
+            if (!empty($order['payment_rejected_at'])) throw new Exception('Rejected payments cannot be confirmed.');
             if ($order['method'] === 'GCash' && (!cbRealGcashReference($order['reference_number']) || !cbReceiptPath($order['receipt_path'] ?? null))) {
                 throw new Exception('The customer must submit their actual GCash reference number and receipt before payment can be confirmed.');
             }
@@ -204,7 +206,7 @@ if (
                     o.order_id,
                     o.order_number,
                     o.status_id,
-                    p.payment_status
+                    p.payment_status, p.method AS payment_method, p.payment_rejected_at
                 FROM orders o
                 LEFT JOIN payments p
                     ON o.order_id = p.order_id
@@ -226,9 +228,12 @@ if (
                 throw new Exception("Order not found.");
             }
 
-            if ($order["payment_status"] !== "Paid") {
+            $cashAtPickup = $order['payment_method'] === 'Cash' && $order['payment_status'] === 'Unpaid'
+                && in_array($new_status_id, [2,3], true);
+            if (!empty($order['payment_rejected_at']) || ($order['payment_status'] !== 'Paid' && !$cashAtPickup)) {
                 throw new Exception(
-                    "Payment must be confirmed before the order can be prepared."
+                    $new_status_id === 4 ? 'Receive and confirm payment before completing this order.'
+                        : 'GCash payment must be verified before preparing the order.'
                 );
             }
 
@@ -1848,6 +1853,13 @@ campusBiteTracking($pdo, $orders, true);
                         </div>
                     <?php endif; ?>
 
+                    <?php if ($order['payment_method'] === 'Cash' && $order['payment_status'] === 'Unpaid' && in_array((int) $order['status_id'], [1,2,3], true)): ?>
+                        <div class="staff-cash-payment-note">
+                            <strong>Cash due at pickup - not paid yet</strong>
+                            <p>You may prepare this order now. At the cashier, check the customer's order number and collect PHP <?= number_format((float) $order['total_amount'], 2) ?> before confirming cash payment and completing the order.</p>
+                        </div>
+                    <?php endif; ?>
+
                     <?php if (
                         !empty(
                             $order["remarks"]
@@ -1936,8 +1948,8 @@ campusBiteTracking($pdo, $orders, true);
                             $order[
                                 "payment_status"
                             ] === "Unpaid" &&
-                            (int)
-                            $order["status_id"] === 1
+                            (($order['payment_method'] === 'Cash' && in_array((int) $order['status_id'], [1,2,3], true))
+                                || ($order['payment_method'] === 'GCash' && (int) $order['status_id'] === 1))
                         ): ?>
 
                             <form method="POST" data-staff-order-action data-payment-confirm="verify" data-payment-method="<?= cbEscape($order['payment_method']) ?>" data-payment-store="<?= cbEscape($store['store_name']) ?>" data-payment-order="<?= cbEscape($order['order_number']) ?>" data-payment-reference="<?= cbEscape(cbRealGcashReference($order['reference_number']) ? $order['reference_number'] : '') ?>" data-payment-amount="<?= number_format((float) $order['total_amount'], 2, '.', '') ?>">
@@ -1987,9 +1999,8 @@ campusBiteTracking($pdo, $orders, true);
                         <?php if (
                             (int)
                             $order["status_id"] === 1 &&
-                            $order[
-                                "payment_status"
-                            ] === "Paid"
+                            ($order['payment_status'] === 'Paid'
+                                || ($order['payment_method'] === 'Cash' && $order['payment_status'] === 'Unpaid'))
                         ): ?>
 
                             <form method="POST" data-staff-order-action>
@@ -2032,7 +2043,8 @@ campusBiteTracking($pdo, $orders, true);
 
                         <?php if (
                             (int)
-                            $order["status_id"] === 2
+                            $order["status_id"] === 2 && ($order['payment_status'] === 'Paid'
+                                || ($order['payment_method'] === 'Cash' && $order['payment_status'] === 'Unpaid'))
                         ): ?>
 
                             <form method="POST" data-staff-order-action>
@@ -2075,7 +2087,7 @@ campusBiteTracking($pdo, $orders, true);
 
                         <?php if (
                             (int)
-                            $order["status_id"] === 3
+                            $order["status_id"] === 3 && $order['payment_status'] === 'Paid'
                         ): ?>
 
                             <form method="POST" data-staff-order-action>

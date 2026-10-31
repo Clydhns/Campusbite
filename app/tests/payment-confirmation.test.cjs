@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { readFileSync } = require('node:fs');
 const source = readFileSync(require('node:path').join(__dirname,'../payment-confirmation.js'),'utf8');
-function setup(type = 'receipt') {
+function setup(type = 'receipt', method = 'GCash') {
     const state = { sends: 0, capture: null, fields: {} };
     const reason = { value: '', setCustomValidity(value) { this.error=value; }, reportValidity() { return !this.error && this.value.length<=200; }, addEventListener(t,f) { state.reasonInput=f; }, focus() {} };
     const cancel = { addEventListener(t,f) { state.cancel=f; }, focus() {} };
@@ -19,7 +19,7 @@ function setup(type = 'receipt') {
     const rejection = { value:'' };
     const form = { isConnected:true, dataset:{paymentConfirm:type,paymentStore:'Test Kitchen',paymentAmount:'60.00',paymentOrder:'ORD-TEST',paymentReference:reference.value},
         matches:()=>true, reportValidity:()=>state.valid!==false,
-        querySelector(selector) { return ({'[name="payment_method"]:checked':{value:'GCash'},'[name="reference_number"]':reference,'[name="receipt"]':{files:[{name:'receipt.png'}]},'[name="reject_reason"]':rejection})[selector]; },
+        querySelector(selector) { return ({'[name="payment_method"]:checked':{value:method},'[name="reference_number"]':reference,'[name="receipt"]':{files:[{name:'receipt.png'}]},'[name="reject_reason"]':rejection})[selector]; },
         requestSubmit() { const event=state.submit(); if(!event.defaultPrevented) state.sends++; }
     };
     vm.runInNewContext(source,{document:{getElementById:id=>nodes[id],addEventListener(type,f,capture){state.capture=f;assert.equal(capture,true);}}});
@@ -45,4 +45,13 @@ test('a detached or invalid form cannot be confirmed',()=>{
 });
 test('checkout confirmation states payment is still pending',()=>{
     const s=setup('checkout');s.submit();assert.match(s.nodes['payment-confirmation-message'].textContent,/pending order/);assert.match(s.nodes['payment-confirmation-message'].textContent,/staff verification/);
+});
+test('cash checkout explains preparation before payment and payment at pickup',()=>{
+    const s=setup('checkout','Cash');s.submit();assert.match(s.nodes['payment-confirmation-message'].textContent,/prepare your food before payment/);
+    assert.match(s.nodes['payment-confirmation-message'].textContent,/order number and pay at the cashier/);
+});
+test('cash confirmation requires checking the order number and actually receiving cash',()=>{
+    const s=setup('verify','Cash');s.submit();assert.match(s.nodes['payment-confirmation-message'].textContent,/order number/);
+    assert.match(s.nodes['payment-confirmation-message'].textContent,/received the full cash amount/);
+    assert.match(s.nodes['payment-confirmation-message'].textContent,/does not mean it is paid/);
 });

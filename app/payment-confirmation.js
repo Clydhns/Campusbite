@@ -45,7 +45,7 @@
             title.textContent = `Continue with ${method}?`;
             message.textContent = method === 'GCash'
                 ? 'This saves a pending order. Pay this store using GCash, then submit your actual reference and receipt in My Orders for staff verification.'
-                : 'This saves a pending order. Pay at the canteen so staff can confirm your payment and prepare your food.';
+                : 'This saves a pending cash order. The store can prepare your food before payment. Show your order number and pay at the cashier when collecting your food. Staff confirms payment after receiving the cash.';
             proceed.textContent = 'Confirm order';
         } else if (type === 'receipt') {
             title.textContent = 'Submit payment for verification?';
@@ -59,7 +59,7 @@
             title.textContent = `Confirm ${method} payment received?`;
             message.textContent = method === 'GCash'
                 ? 'Confirm only after matching the incoming payment in your GCash account with this order, amount, and reference.'
-                : 'Confirm that the customer has paid the full amount for this order at the canteen.';
+                : 'Match the customer\'s order number shown above. Confirm only after you have received the full cash amount at the cashier. Preparing or marking food ready does not mean it is paid.';
             proceed.textContent = 'Confirm payment received';
         }
         dialog.showModal();

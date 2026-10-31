@@ -1,6 +1,6 @@
 # Student Payment Notices
 
-The shared student navbar shows a green My Orders count for the signed-in
+The shared student navbar shows a tomato-red My Orders count for the signed-in
 student's active orders (Pending, Preparing, Ready for Pickup) whose payment is
 Paid and has no rejection marker. It is an active-payment count, not an unread
 message counter: opening My Orders does not clear it, but completing, cancelling
@@ -16,7 +16,13 @@ There are no browser database keys, new tables or RLS changes.
 My Orders shows an explicit payment-confirmed notice within each paid,
 non-cancelled/non-rejected order. Unpaid receipts awaiting verification and
 refunded payments cannot trigger it. The final steps are Ready to pickup and
-Completed; the database status names and staff workflow are unchanged.
+Completed; the database status names are unchanged. Notices use the site's
+tomato, peach, cream and brown palette.
+
+Cash orders may prepare and become ready while payment remains Unpaid. They show
+a separate cash-due-at-pickup notice, not a paid notification. The cashier must
+match the order number and actually receive cash before using Confirm Cash
+Payment. Completion still requires Paid; see `cash-pay-at-pickup.md`.
 
 Badge checks run after a three-second interval, pause in hidden/leaving tabs and
 back off on errors. Order-card checks run after 1.5 seconds and use conditional

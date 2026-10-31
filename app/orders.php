@@ -1559,6 +1559,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['sync'] ?? '') === '1'
                         <p><?= cbEscape($order['store_name']) ?> has confirmed your payment.</p>
                     </div>
                 <?php endif; ?>
+                <?php if ($order['payment_method'] === 'Cash' && $order['payment_status'] === 'Unpaid' && in_array($statusId, [1,2,3], true)): ?>
+                    <div class="order-cash-payment" data-cash-payment="<?= (int) $order['order_id'] ?>">
+                        <strong>Cash due at pickup - not paid yet</strong>
+                        <p>Your food can be prepared before payment. Show order <?= cbEscape($order['order_number']) ?> at <?= cbEscape($order['store_name']) ?> and pay PHP <?= number_format((float) $order['total_amount'], 2) ?> at the cashier when collecting your food.</p>
+                    </div>
+                <?php endif; ?>
                 <?php require __DIR__ . '/components/gcash-payment-proof.php'; ?>
                 <details class="order-expand" data-order-details="<?= (int) $order['order_id'] ?>">
                     <summary><span>View details</span><span class="order-expand-close">Hide details</span><span aria-hidden="true" class="order-expand-arrow">&#8964;</span></summary>

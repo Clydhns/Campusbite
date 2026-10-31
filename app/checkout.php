@@ -103,6 +103,11 @@ if (isset($_GET["success"]) && $_GET["success"] === "1") {
     }
     $confirmationPaymentLabel = !empty($successData['payment_rejected_at']) ? 'Rejected' : ($paymentState === 'review' ? 'Awaiting verification'
         : ($successData['payment_status'] === 'Unpaid' ? 'Unpaid' : $successData['payment_status']));
+    if ($paymentState === 'unpaid' && $successData['payment_method'] === 'Cash') {
+        $confirmationTitles['unpaid'] = [2 => 'Your order is being prepared', 3 => 'Ready for pickup'][(int) $successData['status_id']] ?? 'Cash due at pickup';
+        $confirmationMessages['unpaid'] = 'The store can prepare your food before payment. Show order ' . $successData['order_number'] . ' and pay at the cashier when collecting your food. Your payment remains unpaid until staff receive the cash.';
+        $confirmationPaymentLabel = 'Unpaid - pay at pickup';
+    }
     if ($paymentState === 'paid') {
         $paidProgress = [
             2 => ['Your order is being prepared', 'The store is preparing your food. Your pickup status will update here.'],
@@ -984,8 +989,8 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                 >
                     <strong>Cash Payment</strong><br>
 
-                    Please pay at the canteen when required.
-                    Staff will confirm the payment before preparing your order.
+                    Your food can be prepared before payment. Show your order number and
+                    pay at the cashier when collecting your food. Staff will confirm only after receiving the cash.
                 </div>
 
             <?php endif; ?>
@@ -1137,7 +1142,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                 <div class="checkout-card">
 
                     <h2>Payment</h2>
-                    <p class="checkout-payment-note">Staff will confirm your payment before preparing your order.</p>
+                    <p class="checkout-payment-note">Cash: pay at the cashier when collecting your food. GCash: staff must verify your payment before preparation.</p>
 
                     <form
                         action="checkout.php"
@@ -1177,7 +1182,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                                     </strong>
 
                                     <small>
-                                        Pay at the canteen.
+                                        Pay when collecting your food.
                                     </small>
 
                                 </div>

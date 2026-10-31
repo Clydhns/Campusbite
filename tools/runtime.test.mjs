@@ -39,7 +39,7 @@ async function signin(request,email) {
 }
 try {
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
@@ -444,8 +444,9 @@ try {
   await student('checkout.php',{csrf_token:token(secondCheckout.html),action:'place_order',payment_method:'Cash',remarks:''});
   const second=(await db.query('SELECT order_id,order_number FROM public.orders ORDER BY order_id DESC LIMIT 1')).rows[0];
   check(second.order_number.endsWith('-003'),'Successive per-store checkouts receive distinct order numbers');
-  await assert.rejects(db.exec(`UPDATE public.orders SET status_id=2 WHERE order_id=${Number(second.order_id)}`));
-  check(true,'Database trigger prevents preparing an unpaid order');
+  const unpaidGcash=(await db.query("SELECT o.order_id FROM public.orders o JOIN public.payments p ON p.order_id=o.order_id WHERE p.method='GCash' AND p.payment_status='Unpaid' LIMIT 1")).rows[0];
+  await assert.rejects(db.query('UPDATE public.orders SET status_id=2 WHERE order_id=$1',[unpaidGcash.order_id]));
+  check(true,'Database trigger still prevents preparing an unpaid GCash order');
   const staffOrders=await staff('staff_dashboard.php');
   const unpaidOrders=await student('orders.php');
   const ordersVersion=html=>html.match(/data-orders-version="([a-f0-9]{64})"/)?.[1];
@@ -605,6 +606,50 @@ try {
   check(manualPlaced.status===302 && Number((await db.query('SELECT quantity FROM public.order_items ORDER BY order_item_id DESC LIMIT 1')).rows[0].quantity)===12
     && Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining)===0,
     'An available food checks out above old stock counts without decrementing legacy inventory');
+  const cashOrderId=Number(new URL(manualPlaced.location,base).searchParams.get('order'));
+  const cashPage=await staff('staff_dashboard.php');
+  const cashCard=html=>html.match(new RegExp('<article class="order-card" data-staff-order="'+cashOrderId+'"[\\s\\S]*?<\\/article>'))?.[0] || '';
+  check(cashCard(cashPage.html).includes('Start Preparing') && cashCard(cashPage.html).includes('Cash due at pickup - not paid yet'),
+    'An unpaid cash order offers preparation while clearly stating that payment is still due');
+  for(const next of [2,3]) {
+    const current=await staff('staff_dashboard.php');
+    await staff('staff_dashboard.php',{csrf_token:token(current.html),action:'update_status',order_id:String(cashOrderId),status_id:String(next)});
+    assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[cashOrderId])).rows[0].status_id),next);
+    const payment=(await db.query('SELECT payment_status,paid_at,received_by FROM public.payments WHERE order_id=$1',[cashOrderId])).rows[0];
+    assert.equal(payment.payment_status,'Unpaid');assert.equal(payment.paid_at,null);assert.equal(payment.received_by,null);
+    const confirmation=await separateCarts('checkout.php?success=1&order='+cashOrderId);
+    assert.ok(confirmation.html.includes('data-payment-state="unpaid"') && confirmation.html.includes('Unpaid - pay at pickup'));
+    assert.ok(confirmation.html.includes(next===2?'Your order is being prepared':'Ready for pickup'));
+  }
+  check(true,'Cash orders prepare and become ready without marking payment paid or recording a cashier');
+  const unpaidCashPage=await staff('staff_dashboard.php');
+  check(cashCard(unpaidCashPage.html).includes('Confirm Cash Payment') && !cashCard(unpaidCashPage.html).includes('Mark Completed'),
+    'Ready cash orders retain the cashier confirmation action and do not offer unpaid completion');
+  await staff('staff_dashboard.php',{csrf_token:token(unpaidCashPage.html),action:'update_status',order_id:String(cashOrderId),status_id:'4'});
+  await assert.rejects(db.query('UPDATE public.orders SET status_id=4 WHERE order_id=$1',[cashOrderId]));
+  check(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[cashOrderId])).rows[0].status_id)===3,
+    'Both PHP and the database reject completing a cash order before payment is received');
+  const customerCash=await student('orders.php');
+  check(customerCash.html.includes('data-cash-payment="'+cashOrderId+'"') && !customerCash.html.includes('data-payment-confirmed="'+cashOrderId+'"'),
+    'Customers see the order number, pickup payment instructions and no false payment confirmation while cash is due');
+  await other('staff_dashboard.php',{csrf_token:otherToken,action:'confirm_payment',order_id:String(cashOrderId)});
+  check((await db.query('SELECT payment_status FROM public.payments WHERE order_id=$1',[cashOrderId])).rows[0].payment_status==='Unpaid',
+    'Another store cannot confirm receipt of this cash payment');
+  await staff('staff_dashboard.php',{csrf_token:'invalid',action:'confirm_payment',order_id:String(cashOrderId)});
+  check((await db.query('SELECT payment_status FROM public.payments WHERE order_id=$1',[cashOrderId])).rows[0].payment_status==='Unpaid',
+    'Cash collection still requires a valid CSRF token');
+  await other('staff_dashboard.php',{csrf_token:otherToken,action:'update_status',order_id:String(unpaidGcash.order_id),status_id:'2',payment_method:'Cash'});
+  check(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[unpaidGcash.order_id])).rows[0].status_id)===1,
+    'Posting a fake Cash method cannot bypass GCash payment verification');
+  await staff('staff_dashboard.php',{csrf_token:token(unpaidCashPage.html),action:'confirm_payment',order_id:String(cashOrderId)});
+  const receivedCash=(await db.query('SELECT payment_status,paid_at,received_by FROM public.payments WHERE order_id=$1',[cashOrderId])).rows[0];
+  check(receivedCash.payment_status==='Paid' && receivedCash.paid_at && Number(receivedCash.received_by)===2,
+    'Cash is marked Paid only when the owning cashier explicitly confirms receipt, with time and staff recorded');
+  const paidCashPage=await staff('staff_dashboard.php');
+  check(cashCard(paidCashPage.html).includes('Mark Completed'), 'Cash completion becomes available after actual payment confirmation');
+  await staff('staff_dashboard.php',{csrf_token:token(paidCashPage.html),action:'update_status',order_id:String(cashOrderId),status_id:'4'});
+  check(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[cashOrderId])).rows[0].status_id)===4,
+    'The cashier can complete a prepared cash order after collecting payment');
   const drinkShopper=client(); await signin(drinkShopper,'student@example.invalid');
   const drinksMenu=await drinkShopper('menu.php?store=1');
   const addedCoke=await drinkShopper('menu.php?store=1',{csrf_token:token(drinksMenu.html),item_id:String(coke.item_id),quantity:'1'});
