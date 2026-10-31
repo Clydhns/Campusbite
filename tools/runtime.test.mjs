@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { readFile, mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHmac } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const php=process.env.PHP_BINARY || 'C:/xampp/php/php.exe';
 const password=randomBytes(24).toString('hex');
+const sessionSecret=randomBytes(48).toString('hex');
 const hashResult=spawnSync(php,['-r','echo password_hash($argv[1], PASSWORD_DEFAULT);',password],{encoding:'utf8'});
 assert.equal(hashResult.status,0);
 const db=new PGlite();
@@ -91,7 +92,7 @@ try {
     'Admin statistics use one query while retaining correct empty, current-day and historical totals');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
-    APP_SESSION_SECRET:randomBytes(48).toString('hex'),CAMPUSBITE_LOCAL_TEST:'1'}});
+    APP_SESSION_SECRET:sessionSecret,CAMPUSBITE_LOCAL_TEST:'1'}});
   child.stderr.on('data',data=>{logs+=data.toString();}); child.stdout.on('data',data=>{logs+=data.toString();});
   child.on('error',error=>{logs+=error.message;});
   for(let i=0;i<60;i++) {
@@ -450,7 +451,7 @@ try {
   check(true,'Repeating cancellation cannot change legacy serving counts');
   const staff=client(); await signin(staff,'staff@example.invalid');
   for(const route of ['staff_dashboard.php','staff_menu.php','staff_profile.php']) assert.equal((await staff(route)).status,200);
-  for(const [route,active] of [['staff_dashboard.php','Dashboard'],['staff_menu.php','Menu'],['staff_menu.php?view=settings','Store Settings'],['staff_profile.php','Store Profile']]) {
+  for(const [route,active] of [['staff_dashboard.php','Dashboard'],['staff_menu.php','Menu'],['staff_menu.php?view=settings','Store Profile'],['staff_profile.php','Account details']]) {
     const page=await staff(route);
     const navigation=page.html.match(/<nav\b[^>]*aria-label="Store navigation"[\s\S]*?<\/nav>/)?.[0] || '';
     assert.ok(navigation.includes('Store workspace') && !navigation.includes('My Store') && !navigation.includes('My Profile'));
@@ -459,16 +460,16 @@ try {
     assert.equal((navigation.match(/aria-current="page"/g) || []).length,1);
     assert.ok(navigation.includes('aria-current="page">'+active+'</a>'));
   }
-  check(true,'Shared navbar separates Menu, Store Settings and Store Profile with one correct active item on every store page');
+  check(true,'Shared navbar separates Menu, Store Profile and Account details with one correct active item on every store page');
   const storeDashboard=await staff('staff_dashboard.php');
   const storeProfile=await staff('staff_menu.php?view=settings');
   const accountDetails=await staff('staff_profile.php');
   check(storeDashboard.html.includes('Store Dashboard') && !storeDashboard.html.includes('Staff Dashboard')
-    && storeProfile.html.includes('id="store-settings-title">Store Settings</h2>')
-    && !storeProfile.html.includes('>Account details</a>')
-    && accountDetails.html.includes('<h1>Store Profile</h1>') && accountDetails.html.includes('name="current_password"')
-    && accountDetails.html.includes('Back to Store Settings'),
-    'Store Settings and the password-protected Store Profile have distinct titles and direct navigation');
+    && storeProfile.html.includes('id="store-settings-title">Store Profile</h2>')
+    && !storeProfile.html.includes('class="btn btn-secondary" href="staff_profile.php"')
+    && accountDetails.html.includes('<h1>Account details</h1>') && accountDetails.html.includes('name="current_password"')
+    && accountDetails.html.includes('Back to Store Profile'),
+    'Store Profile and password-protected Account details have distinct titles and direct navigation');
   const store=await staff('staff_menu.php');
   const food=await staff('staff_menu.php',{csrf_token:token(store.html),action:'save_food',item_id:'0',item_name:'New Fixture Meal',description:'Test fixture',price:'75',category_id:'1',is_available:'1'});
   assert.equal(food.status,302);
@@ -805,6 +806,80 @@ try {
   await db.exec('UPDATE public.users SET is_active=0 WHERE user_id=3');
   assert.equal((await other('staff_dashboard.php')).status,302);
   check(true,'A deactivated account is rejected on its next request');
+  const securityPage=await staff('staff_menu.php?view=settings');
+  const passwordForm=securityPage.html.match(/<form\b[^>]*class="cb-store-password-form"[\s\S]*?<\/form>/)?.[0] || '';
+  check(passwordForm.includes('value="change_password"') && passwordForm.includes('name="current_password"')
+    && passwordForm.includes('name="new_password"') && passwordForm.includes('name="confirm_password"'),
+    'Store Profile offers a separate current/new/confirm password form without mixing credentials into store settings');
+  const originalStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash;
+  const otherStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=3')).rows[0].password_hash;
+  const newStaffPassword='New fixture '+randomBytes(18).toString('hex');
+  const change={action:'change_password',csrf_token:token(passwordForm),current_password:password,new_password:newStaffPassword,confirm_password:newStaffPassword};
+  for(const overrides of [
+    {csrf_token:'invalid'}, {current_password:'Wrong fixture password'},
+    {confirm_password:'Does not match'}, {new_password:'short',confirm_password:'short'},
+    {new_password:'x'.repeat(73),confirm_password:'x'.repeat(73)},
+    {new_password:'contains\0null',confirm_password:'contains\0null'},
+    {new_password:password,confirm_password:password},
+    {new_password:undefined,'new_password[]':'Invalid array'}
+  ]) {
+    const attempt=await staff('staff_menu.php?view=settings',{...change,...overrides});
+    assert.equal(attempt.status,200);
+    assert.ok(attempt.html.includes('role="alert"'));
+    assert.ok(!attempt.html.includes(newStaffPassword) && !attempt.html.includes(password));
+    assert.equal((await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash,originalStaffHash);
+  }
+  check(true,'Wrong passwords, invalid CSRF, mismatches, short/oversized/null/array input and password reuse cannot change credentials or echo secrets');
+  assert.equal((await student('staff_menu.php?view=settings',change)).status,302);
+  assert.equal((await client()('staff_menu.php?view=settings',change)).status,302);
+  check((await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===originalStaffHash,
+    'Students and signed-out visitors cannot use the staff password action');
+  const otherDevice=client(); await signin(otherDevice,'staff@example.invalid');
+  const preChange=await staff('staff_menu.php?view=settings');
+  const obsoleteSession=client(preChange.sessionCookie);
+  const beforePasswordStore=(await db.query('SELECT * FROM stores WHERE store_id=1')).rows[0];
+  const changedPassword=await staff('staff_menu.php?view=settings',{...change,user_id:'3',role_id:'1'});
+  check(changedPassword.status===302 && changedPassword.location==='staff_menu.php?view=settings#change-password'
+    && changedPassword.sessionCookie!==preChange.sessionCookie,
+    'Successful password change returns to Store Profile and rotates the current session ID');
+  const changedStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash;
+  check(changedStaffHash!==originalStaffHash && changedStaffHash!==newStaffPassword
+    && (await db.query('SELECT password_hash FROM users WHERE user_id=3')).rows[0].password_hash===otherStaffHash,
+    'A new salted hash is saved only for the authenticated store account, ignoring forged account and role fields');
+  assert.deepEqual((await db.query('SELECT * FROM stores WHERE store_id=1')).rows[0],beforePasswordStore);
+  const passwordConfirmed=await staff('staff_menu.php?view=settings');
+  check(passwordConfirmed.status===200 && passwordConfirmed.html.includes('Password changed.')
+    && !passwordConfirmed.html.includes(newStaffPassword),
+    'Password saving leaves store settings unchanged and the current session signed in with a non-secret confirmation');
+  check((await otherDevice('staff_dashboard.php')).status===302 && (await obsoleteSession('staff_dashboard.php')).status===302,
+    'Other staff sessions and the pre-rotation session cookie are rejected after a password change');
+  const replay=await staff('staff_menu.php?view=settings',change);
+  check(replay.html.includes('Invalid request.') && (await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===changedStaffHash,
+    'The old password-change CSRF token cannot be replayed after success');
+  const passwordLogin=client();
+  const oldLoginPage=await passwordLogin('login.php');
+  const oldLogin=await passwordLogin('login.php',{csrf_token:token(oldLoginPage.html),email:'staff@example.invalid',password});
+  assert.equal(oldLogin.status,200); assert.ok(oldLogin.html.includes('Invalid email or password.'));
+  const newLogin=await passwordLogin('login.php',{csrf_token:token(oldLogin.html),email:'staff@example.invalid',password:newStaffPassword});
+  check(newLogin.status===302 && newLogin.location==='staff_dashboard.php'
+    && (await passwordLogin('staff_dashboard.php')).status===200,
+    'The old password stops working and the new password signs the store account in normally');
+  const legacyKey=createHmac('sha256',sessionSecret).update(newLogin.sessionCookie.split('=')[1]).digest('hex');
+  const legacyPayload=(await db.query('SELECT payload FROM campusbite_private.sessions WHERE session_key=$1',[legacyKey])).rows[0].payload;
+  const legacyDecoded=Buffer.from(legacyPayload,'base64').toString('utf8');
+  const withoutStamp=legacyDecoded.replace(/staff_credential_stamp\|s:64:"[a-f0-9]{64}";/,'');
+  assert.notEqual(withoutStamp,legacyDecoded);
+  await db.query('UPDATE campusbite_private.sessions SET payload=$1 WHERE session_key=$2',[Buffer.from(withoutStamp).toString('base64'),legacyKey]);
+  check((await passwordLogin('staff_dashboard.php')).status===302,
+    'Legacy staff sessions without a credential stamp must sign in again instead of bypassing password-change revocation');
+  const throttlingPage=await staff('staff_menu.php?view=settings');
+  const throttlingForm=throttlingPage.html.match(/<form\b[^>]*class="cb-store-password-form"[\s\S]*?<\/form>/)[0];
+  const throttledChange={...change,csrf_token:token(throttlingForm),current_password:'Wrong current fixture',new_password:'Another fixture password',confirm_password:'Another fixture password'};
+  for(let attempt=0;attempt<5;attempt++) await staff('staff_menu.php?view=settings',throttledChange);
+  const throttled=await staff('staff_menu.php?view=settings',{...throttledChange,current_password:newStaffPassword});
+  check(throttled.html.includes('Too many attempts.')
+    && (await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===changedStaffHash,
+    'Five incorrect current-password attempts pause further password changes for one minute without modifying the account');
   await student('logout.php'); assert.equal((await student('profile.php')).status,302);
   check(true,'Logout destroys the persistent session');
   const sessionCount=(await db.query('SELECT count(*) AS count FROM campusbite_private.sessions')).rows[0].count;

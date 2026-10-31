@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once "config/connection.php";
 require_once __DIR__ . '/config/auth-security.php';
+require_once __DIR__ . '/config/staff-password.php';
 
 $error = "";
 
@@ -65,6 +66,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !cbAuthRequestValid()) {
             } else {
 
                 session_regenerate_id(true);
+                unset($_SESSION['staff_credential_stamp']);
+                if ((int) $user['role_id'] === 2) $_SESSION['staff_credential_stamp'] = cbStaffCredentialStamp($user['password_hash']);
 
                 /*
                 |--------------------------------------------------------------------------

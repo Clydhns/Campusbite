@@ -49,11 +49,14 @@ try {
     session_set_save_handler(new CampusBiteSessions(cbCloudDatabase(),$secret),true);
     session_start();
     if (isset($_SESSION['user_id'])) {
+        require_once dirname(__DIR__).'/app/config/staff-password.php';
         $identityDatabase=cbApplicationDatabase();
-        $identity=$identityDatabase->prepare('SELECT u.role_id,r.role_name FROM users u JOIN roles r ON r.role_id=u.role_id WHERE u.user_id=? AND u.is_active=1');
+        $identity=$identityDatabase->prepare('SELECT u.role_id,u.password_hash,r.role_name FROM users u JOIN roles r ON r.role_id=u.role_id WHERE u.user_id=? AND u.is_active=1');
         $identity->execute([(int)$_SESSION['user_id']]);
         $account=$identity->fetch();
-        if (!$account || (int)$account['role_id']!==(int)($_SESSION['role_id'] ?? 0)) {
+        if (!$account || (int)$account['role_id']!==(int)($_SESSION['role_id'] ?? 0)
+            || ((int)$account['role_id']===2 && (!is_string($_SESSION['staff_credential_stamp'] ?? null)
+                || !hash_equals(cbStaffCredentialStamp($account['password_hash']),$_SESSION['staff_credential_stamp'])))) {
             $_SESSION=[]; session_destroy(); header('Location: login.php',true,302); exit;
         }
         $_SESSION['role_name']=$account['role_name'];

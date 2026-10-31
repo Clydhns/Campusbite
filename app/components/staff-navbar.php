@@ -6,8 +6,8 @@ $staffNavigationSettings = $staffNavigationPage === 'staff_menu.php' && !empty($
 $staffNavigationLinks = [
     ['staff_dashboard.php', 'Dashboard', $staffNavigationPage === 'staff_dashboard.php'],
     ['staff_menu.php', 'Menu', $staffNavigationPage === 'staff_menu.php' && !$staffNavigationSettings],
-    ['staff_menu.php?view=settings', 'Store Settings', $staffNavigationSettings],
-    ['staff_profile.php', 'Store Profile', $staffNavigationPage === 'staff_profile.php'],
+    ['staff_menu.php?view=settings', 'Store Profile', $staffNavigationSettings],
+    ['staff_profile.php', 'Account details', $staffNavigationPage === 'staff_profile.php'],
     ['logout.php', 'Logout', false],
 ];
 ?>
