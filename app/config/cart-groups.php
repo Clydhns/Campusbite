@@ -51,7 +51,7 @@ function cbSelectedCheckoutCart(PDO $pdo, array $cart, $requestedStore): array {
         throw new RuntimeException('Choose a store cart below and check out one kitchen at a time.');
     }
     $group = $groups[$storeId];
-    // Stock and current prices are revalidated under locks during order placement.
+    // Availability and current prices are revalidated under locks during order placement.
     if (!$group['store'] || !(int) $group['store']['is_open'] || !(int) $group['store']['staff_active']
         || (int) $group['store']['staff_role'] !== 2) {
         throw new RuntimeException('This kitchen is closed or unavailable. Your other store carts are unchanged.');

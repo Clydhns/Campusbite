@@ -31,6 +31,18 @@
 .cb-store-panel input:not([type=hidden]):not([type=checkbox]),.cb-store-panel select,.cb-store-panel textarea { width:100%; }
 .cb-store-panel textarea { min-height:80px; resize:vertical; }
 .cb-store-panel .cb-store-check { display:flex; align-items:center; gap:10px; margin:20px 0; }
+.cb-store-panel .cb-food-switch-label,.cb-store-panel .cb-food-switch { display:inline-flex; align-items:center; gap:12px; min-height:48px; margin:20px 0 8px; padding:10px 14px; border:1px solid #f1d5bf; border-radius:14px; background:#fff8f0; color:#684632; font:inherit; font-size:14px; font-weight:800; cursor:pointer; }
+.cb-food-switch-label { position:relative; }
+.cb-food-switch-label input { position:absolute; width:1px; height:1px; opacity:0; }
+.cb-switch-track { position:relative; display:inline-block; width:42px; height:24px; border-radius:999px; background:#8c796c; flex-shrink:0; transition:background .18s; }
+.cb-switch-track::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:white; box-shadow:0 1px 3px #3b2a2030; transition:transform .18s; }
+.cb-food-switch[aria-checked="true"] .cb-switch-track,.cb-food-switch-label input:checked + .cb-switch-track { background:#327247; }
+.cb-food-switch[aria-checked="true"] .cb-switch-track::after,.cb-food-switch-label input:checked + .cb-switch-track::after { transform:translateX(18px); }
+.cb-food-switch-label input:not(:checked) ~ .cb-switch-state .cb-switch-on,.cb-food-switch-label input:checked ~ .cb-switch-state .cb-switch-off { display:none; }
+.cb-food-switch:focus-visible,.cb-food-switch-label:has(input:focus-visible) { outline:3px solid #a61f2e; outline-offset:3px; }
+.cb-food-switch:disabled { opacity:.6; cursor:wait; }
+.cb-student #food-availability-notice[hidden] { display:none; }
+@media(prefers-reduced-motion:reduce) { .cb-switch-track,.cb-switch-track::after { transition:none; } }
 .cb-store-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .cb-store-actions { display:flex; flex-wrap:wrap; gap:12px; }
 .cb-store-actions > form { margin:0; }

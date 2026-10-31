@@ -117,10 +117,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $quantity =
             (int) ($_POST["quantity"] ?? 1);
 
-        if ($quantity < 1) {
+        if ($quantity < 1 || $quantity > 99) {
 
             $message =
-                "Quantity must be at least 1.";
+                "Quantity must be between 1 and 99.";
 
             $messageType = "error";
 
@@ -149,13 +149,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         mi.item_name,
                         mi.price,
                         mi.is_available AS general_available,
-                        dm.quantity_remaining,
-                        dm.is_available AS daily_available
+                        s.is_open,
+                        owner.is_active AS owner_active,
+                        owner.role_id AS owner_role
                     FROM menu_items mi
-
-                    LEFT JOIN daily_menu dm
-                        ON dm.item_id = mi.item_id
-                        AND dm.menu_date = CURRENT_DATE
+                    JOIN stores s ON s.store_id=mi.store_id
+                    JOIN users owner ON owner.user_id=s.staff_user_id
 
                     WHERE mi.item_id = ? AND mi.archived_at IS NULL
 
@@ -177,25 +176,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 } else {
 
-                    $hasDailyRecord =
-                        $item["quantity_remaining"] !== null;
-
-                    if ($hasDailyRecord) {
-
-                        $remaining =
-                            (int) $item["quantity_remaining"];
-
-                        $available =
-                            ((int) $item["daily_available"] === 1 && (int) $item["general_available"] === 1)
-                            &&
-                            $remaining > 0;
-
-                    } else {
-
-                        $remaining = null;
-
-                        $available = false;
-                    }
+                    $available = (int) $item['general_available'] === 1 && (int) $item['is_open'] === 1
+                        && (int) $item['owner_active'] === 1 && (int) $item['owner_role'] === 2;
 
                     if (!$available) {
 
@@ -204,20 +186,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         $message =
                             $item["item_name"] .
                             " is no longer available and was removed.";
-
-                        $messageType = "error";
-
-                    } elseif (
-                        $remaining !== null &&
-                        $quantity > $remaining
-                    ) {
-
-                        $message =
-                            "Only " .
-                            $remaining .
-                            " serving(s) of " .
-                            $item["item_name"] .
-                            " are available.";
 
                         $messageType = "error";
 
@@ -270,16 +238,15 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
                 mi.price,
                 mi.is_available AS general_available,
                 c.category_name,
-                dm.quantity_remaining,
-                dm.is_available AS daily_available
+                s.is_open,
+                owner.is_active AS owner_active,
+                owner.role_id AS owner_role
             FROM menu_items mi
+            JOIN stores s ON s.store_id=mi.store_id
+            JOIN users owner ON owner.user_id=s.staff_user_id
 
             INNER JOIN categories c
                 ON mi.category_id = c.category_id
-
-            LEFT JOIN daily_menu dm
-                ON dm.item_id = mi.item_id
-                AND dm.menu_date = CURRENT_DATE
 
             WHERE mi.item_id = ? AND mi.archived_at IS NULL
 
@@ -305,25 +272,8 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
         --------------------------------------------------------------
         */
 
-        $hasDailyRecord =
-            $item["quantity_remaining"] !== null;
-
-        if ($hasDailyRecord) {
-
-            $remaining =
-                (int) $item["quantity_remaining"];
-
-            $available =
-                ((int) $item["daily_available"] === 1 && (int) $item["general_available"] === 1)
-                &&
-                $remaining > 0;
-
-        } else {
-
-            $remaining = null;
-
-            $available = false;
-        }
+        $available = (int) $item['general_available'] === 1 && (int) $item['is_open'] === 1
+            && (int) $item['owner_active'] === 1 && (int) $item['owner_role'] === 2;
 
         /*
         --------------------------------------------------------------
@@ -346,7 +296,7 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
         $cartItem["category_name"] =
             $item["category_name"];
         $cartItem['image_path'] = $item['image_path'];
-        $cartItem['quantity_remaining'] = $remaining;
+        unset($cartItem['quantity_remaining']);
 
         /*
         --------------------------------------------------------------
@@ -362,18 +312,7 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
 
             $cartItem["unavailable"] = false;
 
-            /*
-            Limit current quantity to available stock.
-            */
-
-            if (
-                $remaining !== null &&
-                (int) $cartItem["quantity"] > $remaining
-            ) {
-
-                $cartItem["quantity"] =
-                    $remaining;
-            }
+            $cartItem['quantity'] = min(99, (int) $cartItem['quantity']);
         }
 
     } catch (PDOException $e) {
@@ -1236,7 +1175,7 @@ $firstName =
                                             echo $quantity;
                                         ?>"
                                         min="1"
-                                        max="<?= max($quantity, min(99, (int) ($item['quantity_remaining'] ?? 99))) ?>"
+                                        max="99"
                                         required
                                     >
                                     <button type="button" data-quantity-step="1" aria-label="Increase quantity for <?= cbEscape($item['item_name']) ?>">+</button>

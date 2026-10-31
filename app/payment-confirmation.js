@@ -53,7 +53,7 @@
             proceed.textContent = 'Submit for verification';
         } else if (type === 'reject') {
             title.textContent = 'Reject payment and cancel order?';
-            message.textContent = 'The order will be cancelled and reserved stock restored. The customer will see your reason. Any refund must be handled separately with the customer.';
+            message.textContent = 'The order will be cancelled. The customer will see your reason. Any refund must be handled separately with the customer.';
             proceed.textContent = 'Reject and cancel order';
         } else {
             title.textContent = `Confirm ${method} payment received?`;

@@ -142,7 +142,7 @@ $recentOrders = [];
 |--------------------------------------------------------------------------
 |
 | Keep the store catalog visible even when an item cannot be ordered today.
-| Menu and checkout still enforce today's availability and stock separately.
+| Menu and checkout recheck the staff availability switch before ordering.
 |
 */
 try {
@@ -154,11 +154,7 @@ try {
             mi.description,
             mi.price,
             mi.is_available,
-            c.category_name,
-            dm.daily_menu_id,
-            dm.quantity_prepared,
-            dm.quantity_remaining,
-            dm.is_available AS daily_is_available
+            c.category_name
 
         FROM menu_items mi
         JOIN stores s ON s.store_id=mi.store_id
@@ -166,10 +162,6 @@ try {
 
         INNER JOIN categories c
             ON mi.category_id = c.category_id
-
-        LEFT JOIN daily_menu dm
-            ON dm.item_id = mi.item_id
-            AND dm.menu_date = CURRENT_DATE
 
         WHERE mi.archived_at IS NULL AND s.is_open=1
           AND store_owner.is_active=1 AND store_owner.role_id=2
@@ -184,18 +176,8 @@ try {
 
     $menuItems = $menuStmt->fetchAll();
     foreach ($menuItems as &$item) {
-        $item['dashboard_available'] = false;
-        if ((int) $item['is_available'] !== 1
-            || ($item['daily_menu_id'] !== null && (int) $item['daily_is_available'] !== 1)) {
-            $item['dashboard_status'] = 'Currently unavailable';
-        } elseif ($item['daily_menu_id'] === null) {
-            $item['dashboard_status'] = 'Not available today';
-        } elseif ((int) $item['quantity_remaining'] <= 0) {
-            $item['dashboard_status'] = 'Sold out today';
-        } else {
-            $item['dashboard_available'] = true;
-            $item['dashboard_status'] = 'Available today';
-        }
+        $item['dashboard_available'] = (int) $item['is_available'] === 1;
+        $item['dashboard_status'] = $item['dashboard_available'] ? 'Available' : 'Currently unavailable';
     }
     unset($item);
 
@@ -1098,20 +1080,6 @@ function getStatusClass($status)
                             </div>
 
                             <span class="cb-food-availability" data-available="<?= $item['dashboard_available'] ? 'true' : 'false' ?>"><?= cbEscape($item['dashboard_status']) ?></span>
-
-                            <?php if ($item['dashboard_available']): ?>
-
-                                <div class="food-stock">
-
-                                    🟠
-                                    <?= (int) $item[
-                                        "quantity_remaining"
-                                    ] ?>
-                                    available today
-
-                                </div>
-
-                            <?php endif; ?>
 
                             <span class="cb-food-display-link">View kitchen &rarr;</span>
 

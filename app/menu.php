@@ -59,18 +59,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     mi.description,
                     mi.price,
                     mi.is_available AS general_available,
-                    c.category_name,
-                    dm.quantity_remaining,
-                    dm.is_available AS daily_available
+                    c.category_name
                 FROM menu_items mi
                 JOIN stores s ON s.store_id=mi.store_id
                 JOIN users store_owner ON store_owner.user_id=s.staff_user_id
                 INNER JOIN categories c
                     ON mi.category_id = c.category_id
-                LEFT JOIN daily_menu dm
-                    ON dm.item_id = mi.item_id
-                    AND dm.menu_date = CURRENT_DATE
-                WHERE mi.item_id = ? AND mi.archived_at IS NULL AND s.is_open=1 AND store_owner.is_active=1
+                WHERE mi.item_id = ? AND mi.archived_at IS NULL AND s.is_open=1 AND store_owner.is_active=1 AND store_owner.role_id=2
                 LIMIT 1
             ");
             $stmt->execute([$itemId]);
@@ -80,14 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $message = "Food item not found.";
                 $messageType = "error";
             } else {
-                $remaining = $item["quantity_remaining"];
-                $available = (int) $item["general_available"] === 1 && $remaining !== null;
-
-                if ($remaining !== null) {
-                    $available = $available
-                        && (int) $item["daily_available"] === 1
-                        && (int) $remaining > 0;
-                }
+                $available = (int) $item["general_available"] === 1;
 
                 $cart = $_SESSION["cart"] ?? [];
                 $currentQty = (int) ($cart[$itemId]["quantity"] ?? 0);
@@ -96,11 +84,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if (!$available) {
                     $message = "This food is currently unavailable.";
                     $messageType = "error";
-                } elseif (
-                    $remaining !== null &&
-                    $newQty > (int) $remaining
-                ) {
-                    $message = "Not enough servings available.";
+                } elseif ($newQty > 99) {
+                    $message = "You can add up to 99 of each food per cart.";
                     $messageType = "error";
                 } else {
                     $_SESSION["cart"][$itemId] = [
@@ -148,18 +133,13 @@ try {
             mi.description,
             mi.price,
             mi.is_available AS general_available,
-            c.category_name,
-            dm.quantity_remaining,
-            dm.is_available AS daily_available
+            c.category_name
         FROM menu_items mi
                 JOIN stores s ON s.store_id=mi.store_id
                 JOIN users store_owner ON store_owner.user_id=s.staff_user_id
         INNER JOIN categories c
             ON mi.category_id = c.category_id
-        LEFT JOIN daily_menu dm
-            ON dm.item_id = mi.item_id
-            AND dm.menu_date = CURRENT_DATE
-        WHERE mi.archived_at IS NULL AND s.is_open=1 AND store_owner.is_active=1 AND (?=0 OR mi.store_id=?)
+        WHERE mi.archived_at IS NULL AND s.is_open=1 AND store_owner.is_active=1 AND store_owner.role_id=2 AND (?=0 OR mi.store_id=?)
         ORDER BY s.store_name, c.category_name, mi.item_name
     ");
     $menuQuery->execute([$selectedStore,$selectedStore]);
@@ -184,9 +164,7 @@ try {
         JOIN categories c ON c.category_id=mi.category_id
         JOIN stores s ON s.store_id=mi.store_id
         JOIN users u ON u.user_id=s.staff_user_id
-        JOIN daily_menu dm ON dm.item_id=mi.item_id AND dm.menu_date=CURRENT_DATE
-        WHERE mi.archived_at IS NULL AND mi.is_available=1 AND s.is_open=1 AND u.is_active=1
-        AND dm.is_available=1 AND dm.quantity_remaining>0
+        WHERE mi.archived_at IS NULL AND mi.is_available=1 AND s.is_open=1 AND u.is_active=1 AND u.role_id=2
         ORDER BY s.store_name, c.category_name, mi.item_name")->fetchAll(PDO::FETCH_ASSOC);
     $kitchenMeals = cbStoreMealHighlights($highlightFoods);
 } catch (PDOException $e) {
@@ -196,9 +174,7 @@ $selectedKitchen = null;
 foreach ($stores as $store) {
     if ((int) $store['store_id'] === $selectedStore) $selectedKitchen = $store;
 }
-$availableCount = count(array_filter($menuItems, static fn($item) =>
-    (int) $item['general_available'] === 1 && (int) $item['daily_available'] === 1
-    && (int) $item['quantity_remaining'] > 0));
+$availableCount = count(array_filter($menuItems, static fn($item) => (int) $item['general_available'] === 1));
 
 function foodEmoji($category) {
     $category = strtolower($category);
@@ -317,20 +293,8 @@ function foodEmoji($category) {
         <?php foreach ($menuItems as $item): ?>
 
             <?php
-                $remaining = $item["quantity_remaining"];
-
-                $available =
-                    (int) $item["general_available"] === 1 && $remaining !== null;
-
-                if ($remaining !== null) {
-                    $available = $available
-                        && (int) $item["daily_available"] === 1
-                        && (int) $remaining > 0;
-                }
-
-                $maxQty = $remaining !== null
-                    ? min(20, (int) $remaining)
-                    : 20;
+                $available = (int) $item["general_available"] === 1;
+                $maxQty = 20;
             ?>
 
             <article
@@ -365,9 +329,6 @@ function foodEmoji($category) {
                     <?php if ($available): ?>
                         <div class="stock">
                             ● Available
-                            <?php if ($remaining !== null): ?>
-                                (<?= (int) $remaining ?> left)
-                            <?php endif; ?>
                         </div>
                     <?php else: ?>
                         <div class="stock unavailable">

@@ -58,19 +58,19 @@ $pdo->commit();
 $order = $pdo->query('SELECT * FROM orders WHERE order_id=101')->fetch();
 $payment = $pdo->query('SELECT * FROM payments WHERE payment_id=201')->fetch();
 $check($number === 'ORD-TEST' && (int)$order['status_id'] === 5 && (int)$order['staff_id'] === 7, 'Rejection cancels the order and records its owner');
-$check((int)$pdo->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 7, 'Reserved servings are restored');
-$check((int)$pdo->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=2')->fetchColumn() === 8, 'Stock is restored to the original order date');
+$check((int)$pdo->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 5, 'Rejection leaves retired serving counts untouched');
+$check((int)$pdo->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=2')->fetchColumn() === 8, 'Rejection does not change another day\'s legacy counts');
 $check($payment['payment_rejected_at'] && $payment['payment_rejection_reason'] === 'The receipt amount does not match.', 'The rejection decision and customer reason are saved');
 $check($payment['payment_status'] === 'Unpaid' && $payment['reference_number'] === '1234567890123' && cbReceiptPath($payment['receipt_path']), 'The original evidence is retained without claiming a payment or refund');
 $check((int)$pdo->query('SELECT COUNT(*) FROM order_status_logs WHERE status_id=5 AND changed_by=7')->fetchColumn() === 1, 'Cancellation creates an audit log');
-$blocked(fn() => cbRejectGcashPayment($pdo,7,1,101,'Repeated request',$token), 'Repeated rejection cannot restore stock twice');
-$check((int)$pdo->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 7, 'Stock remains unchanged after a repeated request');
+$blocked(fn() => cbRejectGcashPayment($pdo,7,1,101,'Repeated request',$token), 'Repeated rejection cannot cancel the order twice');
+$check((int)$pdo->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 5, 'Legacy counts remain unchanged after a repeated request');
 $blocked(fn() => cbSaveGcashReceipt($pdo,3,101,'1234567890123',[]), 'Customers cannot resubmit payment on a rejected order');
 
 $capped = rejectionFixture();
 $capped->exec('UPDATE daily_menu SET quantity_remaining=9 WHERE daily_menu_id=1');
 $capped->beginTransaction(); cbRejectGcashPayment($capped,7,1,101,'Invalid receipt',$token); $capped->commit();
-$check((int)$capped->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 10, 'Stock restoration never exceeds the prepared servings');
+$check((int)$capped->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 9, 'Rejection never adds servings to retired stock records');
 $rollback = rejectionFixture();
 $rollback->exec('DROP TABLE order_status_logs');
 $rollback->beginTransaction();
@@ -78,5 +78,5 @@ try { cbRejectGcashPayment($rollback,7,1,101,'Invalid receipt',$token); throw ne
 catch (PDOException $error) { $rollback->rollBack(); }
 $check((int)$rollback->query('SELECT status_id FROM orders')->fetchColumn() === 1
     && (int)$rollback->query('SELECT quantity_remaining FROM daily_menu WHERE daily_menu_id=1')->fetchColumn() === 5
-    && $rollback->query('SELECT payment_rejected_at FROM payments')->fetchColumn() === null, 'Failure rolls back cancellation, stock, and rejection together');
+    && $rollback->query('SELECT payment_rejected_at FROM payments')->fetchColumn() === null, 'Failure rolls back cancellation and rejection without changing legacy counts');
 echo "$checks rejection checks passed.\n";

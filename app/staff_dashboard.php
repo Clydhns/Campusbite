@@ -163,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rejec
             is_string($_POST['reject_reason'] ?? null) ? $_POST['reject_reason'] : '',
             is_string($_POST['review_token'] ?? null) ? $_POST['review_token'] : '');
         $pdo->commit();
-        $success_message = $rejectedNumber . ' payment rejected. The order was cancelled and reserved stock restored.';
+        $success_message = $rejectedNumber . ' payment rejected. The order was cancelled.';
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         if ($exception instanceof RuntimeException && !($exception instanceof PDOException)) $error_message = $exception->getMessage();

@@ -38,11 +38,6 @@ function cbRejectGcashPayment(PDO $pdo, int $staffId, int $storeId, int $orderId
     $cancel = $pdo->prepare('UPDATE orders SET status_id=5,staff_id=?,cancel_reason=? WHERE order_id=? AND store_id=? AND status_id=1');
     $cancel->execute([$staffId, $note, $orderId, $storeId]);
     if ($cancel->rowCount() !== 1) throw new RuntimeException('The order changed. Refresh before trying again.');
-    $items = $pdo->prepare('SELECT dm.daily_menu_id,oi.quantity FROM order_items oi JOIN daily_menu dm
-        ON dm.item_id=oi.item_id AND dm.menu_date=DATE(?) WHERE oi.order_id=? ORDER BY dm.daily_menu_id');
-    $items->execute([$payment['order_datetime'], $orderId]);
-    $restore = $pdo->prepare('UPDATE daily_menu SET quantity_remaining=LEAST(quantity_prepared,quantity_remaining+?) WHERE daily_menu_id=?');
-    foreach ($items->fetchAll(PDO::FETCH_ASSOC) as $item) $restore->execute([(int) $item['quantity'], (int) $item['daily_menu_id']]);
     $reject = $pdo->prepare('UPDATE payments SET payment_rejected_at=CURRENT_TIMESTAMP,payment_rejection_reason=? WHERE payment_id=?');
     $reject->execute([$reason, $payment['payment_id']]);
     $log = $pdo->prepare('INSERT INTO order_status_logs (order_id,status_id,changed_by,note) VALUES (?,5,?,?)');

@@ -23,9 +23,9 @@ const token=(html,name='csrf_token')=>{
 };
 function client(initialCookie='') {
   let cookie=initialCookie;
-  return async (route,body) => {
+  return async (route,body,options={}) => {
     const response=await fetch(base+'/'+route,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(20000),
-      headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:body?new URLSearchParams(body):undefined});
+      headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{}),...options.headers},body:body?new URLSearchParams(body):undefined});
     for(const item of response.headers.getSetCookie()) if(item.startsWith('campusbite_session=')) cookie=item.split(';')[0];
     const html=await response.text();
     assert.ok(!/Fatal error:|Warning:|SQLSTATE\[|Dashboard error:|Unable to load user information/.test(html),'No PHP/SQL error in response');
@@ -111,34 +111,59 @@ try {
   const heroSection=html=>html.match(/<section class="cb-hero cb-food-hero"[\s\S]*?<\/section>/)?.[0] || '';
   const fixturePhoto='uploads/foods/'+'a'.repeat(32)+'.png';
   await db.query('UPDATE public.menu_items SET image_path=$1 WHERE item_id=1',[fixturePhoto]);
-  for(const [label,change] of [
-    ['Currently unavailable','UPDATE public.menu_items SET is_available=0 WHERE item_id=1'],
-    ['Currently unavailable','UPDATE public.daily_menu SET is_available=0 WHERE item_id=1'],
-    ['Sold out today','UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1'],
-    ['Not available today',"UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=1"]
+  const availabilityStaff=client(); await signin(availabilityStaff,'staff@example.invalid');
+  const availabilityPage=await availabilityStaff('staff_menu.php');
+  const availabilityToken=token(availabilityPage.html);
+  const setAvailability=(item,available,csrf=availabilityToken)=>availabilityStaff('staff_menu.php',
+    {action:'set_food_availability',item_id:String(item),available:String(available),csrf_token:csrf},
+    {headers:{Accept:'application/json'}});
+  check(availabilityPage.html.includes('role="switch"') && availabilityPage.html.includes('data-food-availability')
+    && !availabilityPage.html.includes('name="stock"') && !availabilityPage.html.includes('remaining today'),
+    'Staff editor and food cards show accessible availability switches instead of serving counts');
+  const denied=await setAvailability(1,0,'invalid');
+  check(denied.status===422 && !JSON.parse(denied.html).ok
+    && Number((await db.query('SELECT is_available FROM public.menu_items WHERE item_id=1')).rows[0].is_available)===1,
+    'Invalid CSRF cannot change food availability');
+  const studentToggle=await student('staff_menu.php',{action:'set_food_availability',item_id:'1',available:'0',csrf_token:availabilityToken},
+    {headers:{Accept:'application/json'}});
+  check(studentToggle.status===302
+    && Number((await db.query('SELECT is_available FROM public.menu_items WHERE item_id=1')).rows[0].is_available)===1,
+    'A student cannot use a staff availability endpoint even with a valid staff token');
+  for(const [id,value] of [[2,0],[999999,1],[1,'invalid']]) {
+    const blocked=await setAvailability(id,value);
+    assert.equal(blocked.status,422); assert.equal(JSON.parse(blocked.html).ok,false);
+  }
+  check(Number((await db.query('SELECT is_available FROM public.menu_items WHERE item_id=2')).rows[0].is_available)===1,
+    'Availability updates reject another store, missing foods and invalid states');
+  const off=await setAvailability(1,0);
+  check(off.status===200 && JSON.parse(off.html).available===false && JSON.parse(off.html).workspace==='2-1',
+    'Quick switch saves the requested state and returns the owning workspace without a redirect');
+  const dashboard=await student('dashboard.php');
+  const card=dashboardCard(dashboard.html,1);
+  const hero=heroSection(dashboard.html);
+  check(card.includes('Fixture Meal') && card.includes(fixturePhoto) && card.includes('Currently unavailable') && card.includes('50.00')
+    && card.includes('data-available="false"') && card.includes('menu.php?store=1') && !card.includes('<form')
+    && hero.includes('Fixture Meal') && hero.includes(fixturePhoto) && hero.includes('Currently unavailable'),
+    'Switching off keeps photos, prices and store links visible while marking food unavailable');
+  const unavailableMenu=await student('menu.php?store=1');
+  const rejected=await student('menu.php?store=1',{csrf_token:token(unavailableMenu.html),item_id:'1',quantity:'1'});
+  check(rejected.html.includes('This food is currently unavailable.') && (await student('cart.php')).html.includes('Your cart is empty for now'),
+    'Food switched off cannot be added to a cart');
+  await setAvailability(1,0);
+  check(Number((await db.query('SELECT is_available FROM public.menu_items WHERE item_id=1')).rows[0].is_available)===0,
+    'Repeating an availability request is idempotent rather than flipping the food back on');
+  await setAvailability(1,1);
+  for(const change of [
+    'UPDATE public.daily_menu SET is_available=0 WHERE item_id=1',
+    'UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1',
+    'UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=1'
   ]) {
     await db.exec(change);
-    const dashboard=await student('dashboard.php');
-    const card=dashboardCard(dashboard.html,1);
-    const hero=heroSection(dashboard.html);
-    check(card.includes('Fixture Meal') && card.includes(fixturePhoto) && card.includes(label) && card.includes('50.00')
-      && card.includes('data-available="false"') && card.includes('menu.php?store=1')
-      && !/\d+\s+available today/.test(card) && !card.includes('<form')
-      && hero.includes('Fixture Meal') && hero.includes(fixturePhoto) && hero.includes(label)
-      && !hero.includes('Meals coming soon'),
-      `Home retains meal photos, prices and store links with ${label.toLowerCase()} labels (${change.includes('menu_items')?'catalog':'daily menu'})`);
-    const unavailableMenu=await student('menu.php?store=1');
-    const rejected=await student('menu.php?store=1',{csrf_token:token(unavailableMenu.html),item_id:'1',quantity:'1'});
-    assert.ok(rejected.html.includes('This food is currently unavailable.'));
-    assert.ok((await student('cart.php')).html.includes('Your cart is empty for now'));
-    await db.exec('UPDATE public.menu_items SET is_available=1 WHERE item_id=1; UPDATE public.daily_menu SET menu_date=CURRENT_DATE,is_available=1,quantity_remaining=10 WHERE item_id=1');
+    const shown=await student('dashboard.php');
+    check(dashboardCard(shown.html,1).includes('data-available="true"') && !/\d+\s+available today/.test(dashboardCard(shown.html,1)),
+      'Legacy daily stock does not override the switch: '+change);
   }
-  check(true,'Displaying unavailable catalog items never permits adding them to a cart');
-  const restocked=await student('dashboard.php');
-  check(dashboardCard(restocked.html,1).includes('data-available="true"')
-    && dashboardCard(restocked.html,1).includes('Available today')
-    && /10\s+available today/.test(dashboardCard(restocked.html,1)),
-    'Restocked meals return to available labels and show the current stock');
+  await db.exec('UPDATE public.daily_menu SET quantity_remaining=10 WHERE item_id=1');
   await db.exec('UPDATE public.menu_items SET store_id=1 WHERE item_id=2; UPDATE public.menu_items SET is_available=0 WHERE item_id=1');
   const alternative=await student('dashboard.php');
   check(heroSection(alternative.html).includes('Other Meal') && !heroSection(alternative.html).includes('Fixture Meal')
@@ -154,6 +179,10 @@ try {
     await db.exec(change);
     const hidden=await student('dashboard.php');
     check(!dashboardCard(hidden.html,1) && !heroSection(hidden.html).includes('Fixture Meal'),`Home still excludes ${label}`);
+    if(label==='removed food') {
+      const archivedToggle=await setAvailability(1,1);
+      check(archivedToggle.status===422,'An archived food cannot be re-enabled through the quick switch');
+    }
     await db.exec(restore);
   }
   await db.exec('UPDATE public.menu_items SET image_path=NULL WHERE item_id=1');
@@ -198,12 +227,12 @@ try {
   assert.equal(placed.status,302,placed.html.slice(0,200));
   const order=(await db.query('SELECT order_id,order_number,total_amount,status_id FROM public.orders')).rows[0];
   check(order && /^ORD-\d{8}-001$/.test(order.order_number) && Number(order.total_amount)===100,'Checkout generates an order number, current-price total and atomic order records');
-  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),8);
-  check(true,'Checkout reserves exactly the requested stock');
+  assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),10);
+  check(true,'Checkout succeeds without today\'s daily-menu record and leaves legacy serving counts untouched');
   const retained=await student('cart.php');
   check(retained.html.includes('data-cart-store="2"') && !retained.html.includes('data-cart-store="1"')
     && Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=2')).rows[0].quantity_remaining)===10,
-    'Successful checkout removes only the selected store cart and leaves other-store stock untouched');
+    'Successful checkout removes only the selected store cart and leaves legacy stock untouched');
   const confirmation=await student('checkout.php?success=1');
   check(confirmation.html.includes('View remaining store carts'),'Order confirmation links back to unpurchased store carts');
   await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Repeat'});
@@ -217,16 +246,23 @@ try {
   assert.equal(cancelled.status,200);
   assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[order.order_id])).rows[0].status_id),5);
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),10);
-  check(true,'Customer cancellation restores stock and updates the order');
+  check(true,'Customer cancellation updates the order without changing legacy serving counts');
   await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Repeat'});
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining),10);
-  check(true,'Repeating cancellation cannot restore stock twice');
+  check(true,'Repeating cancellation cannot change legacy serving counts');
   const staff=client(); await signin(staff,'staff@example.invalid');
   for(const route of ['staff_dashboard.php','staff_menu.php','staff_profile.php']) assert.equal((await staff(route)).status,200);
   const store=await staff('staff_menu.php');
-  const food=await staff('staff_menu.php',{csrf_token:token(store.html),action:'save_food',item_id:'0',item_name:'New Fixture Meal',description:'Test fixture',price:'75',category_id:'1',quantity_prepared:'5',stock:'5',is_available:'1'});
+  const food=await staff('staff_menu.php',{csrf_token:token(store.html),action:'save_food',item_id:'0',item_name:'New Fixture Meal',description:'Test fixture',price:'75',category_id:'1',is_available:'1'});
   assert.equal(food.status,302);
-  check((await db.query("SELECT item_id FROM public.menu_items WHERE item_name='New Fixture Meal' AND store_id=1")).rows.length===1,'Staff food creation uses PostgreSQL RETURNING and daily-menu upsert');
+  const newFood=(await db.query("SELECT item_id FROM public.menu_items WHERE item_name='New Fixture Meal' AND store_id=1")).rows[0];
+  check(newFood && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[newFood.item_id])).rows.length===0,
+    'Staff can add available food without entering a count or creating daily stock');
+  const fallbackOff=await staff('staff_menu.php',{action:'set_food_availability',item_id:String(newFood.item_id),available:'0',csrf_token:token(store.html)});
+  const fallbackPage=await staff('staff_menu.php');
+  check(fallbackOff.status===302 && fallbackPage.html.includes('New Fixture Meal is now unavailable.'),
+    'The availability form also saves and confirms changes without JavaScript');
+  await staff('staff_menu.php',{action:'set_food_availability',item_id:String(newFood.item_id),available:'1',csrf_token:token(store.html)});
   const latestMenu=await student('menu.php?store=1');
   await student('menu.php?store=1',{csrf_token:token(latestMenu.html),item_id:'1',quantity:'1'});
   const secondCheckout=await student('checkout.php');
@@ -319,14 +355,25 @@ try {
   await separateCarts('menu.php?store=2',{csrf_token:token(addOther.html),item_id:'2',quantity:'1'});
   const stockCheck=await separateCarts('checkout.php?store=1');
   const orderCount=(await db.query('SELECT COUNT(*) AS n FROM public.orders')).rows[0].n;
-  await db.exec('UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1');
+  await setAvailability(1,0);
   const failedStock=await separateCarts('checkout.php',{csrf_token:token(stockCheck.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:''});
-  assert.ok(failedStock.html.includes('Not enough stock'));
-  await db.exec('UPDATE public.daily_menu SET quantity_remaining=9 WHERE item_id=1');
+  assert.ok(failedStock.html.includes('is currently unavailable'));
+  await setAvailability(1,1);
   const afterFailure=await separateCarts('cart.php');
   check((await db.query('SELECT COUNT(*) AS n FROM public.orders')).rows[0].n===orderCount
     && afterFailure.html.includes('data-cart-store="1"') && afterFailure.html.includes('data-cart-store="2"'),
-    'A stock failure rolls back the selected checkout and preserves both store carts');
+    'Switching off food after checkout opens blocks order creation and preserves both store carts');
+  await db.exec('UPDATE public.daily_menu SET quantity_remaining=0 WHERE item_id=1');
+  const quantityPage=await separateCarts('cart.php');
+  const oversized=await separateCarts('cart.php',{csrf_token:token(quantityPage.html),action:'update',item_id:'1',quantity:'100'});
+  check(oversized.html.includes('Quantity must be between 1 and 99.'),'Cart quantities retain a bounded per-item limit even without serving counts');
+  const largerCart=await separateCarts('cart.php',{csrf_token:token(quantityPage.html),action:'update',item_id:'1',quantity:'12'});
+  check(largerCart.html.includes('Cart updated successfully.'),'Cart quantities are no longer limited by a zero legacy serving count');
+  const manualCheckout=await separateCarts('checkout.php?store=1');
+  const manualPlaced=await separateCarts('checkout.php',{csrf_token:token(manualCheckout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Manual availability fixture'});
+  check(manualPlaced.status===302 && Number((await db.query('SELECT quantity FROM public.order_items ORDER BY order_item_id DESC LIMIT 1')).rows[0].quantity)===12
+    && Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining)===0,
+    'An available food checks out above old stock counts without decrementing legacy inventory');
   const switchSignup=await separateCarts('register.php');
   await separateCarts('register.php',{...signup,csrf_token:token(switchSignup.html),id_number:'FIXTURE-SWITCH',email:'switch@example.invalid',first_name:'Switch'});
   const switchedCart=await separateCarts('cart.php');

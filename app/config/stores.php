@@ -46,7 +46,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
     $ids = array_values(array_unique(array_map(static fn($key) => (int) ($cart[$key]['item_id'] ?? $key), array_keys($cart))));
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $store = null;
-    $stmt = $pdo->prepare("SELECT m.item_id AS cart_item_id,s.*,u.is_active AS staff_active FROM menu_items m
+    $stmt = $pdo->prepare("SELECT m.item_id AS cart_item_id,s.*,u.is_active AS staff_active,u.role_id AS staff_role FROM menu_items m
         JOIN stores s ON s.store_id=m.store_id JOIN users u ON u.user_id=s.staff_user_id
         WHERE m.item_id IN ($placeholders) AND m.archived_at IS NULL ORDER BY m.item_id" . ($pdo->inTransaction() ? ' FOR UPDATE' : ''));
     $stmt->execute($ids);
@@ -54,7 +54,7 @@ function cbCartStore(PDO $pdo, array $cart): ?array {
     foreach ($stmt->fetchAll() as $found) $foundItems[(int) $found['cart_item_id']] = $found;
     foreach ($ids as $id) {
         $found = $foundItems[$id] ?? null;
-        if (!$found || !(int) $found['is_open'] || !(int) $found['staff_active']) {
+        if (!$found || !(int) $found['is_open'] || !(int) $found['staff_active'] || (int) $found['staff_role'] !== 2) {
             throw new RuntimeException('An item belongs to a closed or unavailable store. Remove it from your cart.');
         }
         if ($store && (int) $store['store_id'] !== (int) $found['store_id']) {
@@ -97,13 +97,12 @@ function cbSaveFood(PDO $pdo, int $storeId, array $input): int {
     $name = trim((string) ($input['item_name'] ?? ''));
     $description = trim((string) ($input['description'] ?? ''));
     $price = (string) ($input['price'] ?? '');
-    $stock = filter_var($input['stock'] ?? null, FILTER_VALIDATE_INT);
     $category = filter_var($input['category_id'] ?? null, FILTER_VALIDATE_INT);
     $itemId = (int) ($input['item_id'] ?? 0);
     $available = isset($input['is_available']) ? 1 : 0;
     if (!preg_match('/^.{1,100}$/us', $name) || !preg_match('/^.{0,255}$/us', $description)) throw new RuntimeException('Enter a food name (up to 100 characters) and description (up to 255).');
     if (!preg_match('/^\d{1,6}(\.\d{1,2})?$/', $price) || (float) $price <= 0) throw new RuntimeException('Enter a positive price with at most two decimal places.');
-    if ($stock === false || $stock < 0 || $stock > 65535 || !$category) throw new RuntimeException('Choose a category and valid stock from 0 to 65535.');
+    if (!$category) throw new RuntimeException('Choose a valid category.');
     $check = $pdo->prepare('SELECT category_id FROM categories WHERE category_id=?');
     $check->execute([$category]);
     if (!$check->fetch()) throw new RuntimeException('Category not found.');
@@ -119,12 +118,15 @@ function cbSaveFood(PDO $pdo, int $storeId, array $input): int {
         $stmt->execute([$storeId,$category,$name,$description ?: null,$price,$available]);
         $itemId = (int) $stmt->fetchColumn();
     }
-    $check = $pdo->prepare('SELECT quantity_prepared,quantity_remaining FROM daily_menu WHERE item_id=? AND menu_date=CURRENT_DATE FOR UPDATE');
-    $check->execute([$itemId]);
-    $daily = $check->fetch();
-    $reserved = $daily ? (int) $daily['quantity_prepared'] - (int) $daily['quantity_remaining'] : 0;
-    if ($stock < $reserved) throw new RuntimeException('Prepared stock cannot be less than the servings already sold or reserved (' . $reserved . ').');
-    $stmt = $pdo->prepare('INSERT INTO daily_menu (menu_date,item_id,quantity_prepared,quantity_remaining,is_available) VALUES (CURRENT_DATE,?,?,?,?) ON CONFLICT (menu_date,item_id) DO UPDATE SET quantity_prepared=EXCLUDED.quantity_prepared,quantity_remaining=EXCLUDED.quantity_remaining,is_available=EXCLUDED.is_available');
-    $stmt->execute([$itemId,$stock,$stock-$reserved,$available]);
     return $itemId;
+}
+
+function cbSetFoodAvailability(PDO $pdo, int $storeId, int $itemId, int $available): array {
+    if (!$pdo->inTransaction()) throw new RuntimeException('Menu changes require a transaction.');
+    if ($itemId <= 0 || !in_array($available, [0, 1], true)) throw new RuntimeException('Choose a valid food and availability.');
+    $stmt = $pdo->prepare('UPDATE menu_items SET is_available=? WHERE item_id=? AND store_id=? AND archived_at IS NULL RETURNING item_id,item_name,is_available');
+    $stmt->execute([$available,$itemId,$storeId]);
+    $food = $stmt->fetch();
+    if (!$food) throw new RuntimeException('This food no longer exists or does not belong to your store.');
+    return $food;
 }

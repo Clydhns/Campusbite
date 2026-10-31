@@ -170,7 +170,7 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
                     ? (int) $cartItem["quantity"]
                     : 0;
 
-                if ($itemId <= 0 || $requestedQty <= 0) {
+                if ($itemId <= 0 || $requestedQty <= 0 || $requestedQty > 99) {
                     throw new Exception("Invalid item found in your cart.");
                 }
 
@@ -210,62 +210,6 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
                     );
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | CHECK TODAY'S DAILY MENU
-                |--------------------------------------------------------------------------
-                */
-                $dailyStmt = $pdo->prepare("
-                    SELECT
-                        daily_menu_id,
-                        quantity_remaining,
-                        is_available
-                    FROM daily_menu
-                    WHERE menu_date = CURRENT_DATE
-                      AND item_id = ?
-                    LIMIT 1
-                    FOR UPDATE
-                ");
-
-                $dailyStmt->execute([$itemId]);
-                $dailyMenu = $dailyStmt->fetch();
-
-                /*
-                |--------------------------------------------------------------------------
-                | IF TODAY'S DAILY MENU EXISTS
-                |--------------------------------------------------------------------------
-                */
-                if ($dailyMenu) {
-
-                    if ((int) $dailyMenu["is_available"] !== 1) {
-                        throw new Exception(
-                            $item["item_name"] . " is not available today."
-                        );
-                    }
-
-                    $remaining = (int) $dailyMenu["quantity_remaining"];
-
-                    if ($remaining < $requestedQty) {
-                        throw new Exception(
-                            "Not enough stock for " .
-                            $item["item_name"] .
-                            ". Only " .
-                            $remaining .
-                            " left."
-                        );
-                    }
-
-                } else {
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | NO DAILY MENU RECORD
-                    | Fall back to menu_items.is_available
-                    |--------------------------------------------------------------------------
-                    */
-                    throw new Exception($item["item_name"] . " has no stock set for today.");
-                }
-
                 $unitPrice = (float) $item["price"];
                 $subtotal = $unitPrice * $requestedQty;
 
@@ -277,10 +221,7 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
                     "category_name" => $item["category_name"],
                     "quantity" => $requestedQty,
                     "unit_price" => $unitPrice,
-                    "subtotal" => $subtotal,
-                    "daily_menu_id" => $dailyMenu
-                        ? (int) $dailyMenu["daily_menu_id"]
-                        : null
+                    "subtotal" => $subtotal
                 ];
             }
 
@@ -375,37 +316,6 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
                     $item["quantity"],
                     $item["unit_price"]
                 ]);
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | REDUCE DAILY STOCK
-            |--------------------------------------------------------------------------
-            */
-            foreach ($validatedItems as $item) {
-
-                if ($item["daily_menu_id"] !== null) {
-
-                    $updateStockStmt = $pdo->prepare("
-                        UPDATE daily_menu
-                        SET quantity_remaining =
-                            quantity_remaining - ?
-                        WHERE daily_menu_id = ?
-                          AND quantity_remaining >= ?
-                    ");
-
-                    $updateStockStmt->execute([
-                        $item["quantity"],
-                        $item["daily_menu_id"],
-                        $item["quantity"]
-                    ]);
-
-                    if ($updateStockStmt->rowCount() !== 1) {
-                        throw new Exception(
-                            "Stock changed while placing your order. Please try again."
-                        );
-                    }
-                }
             }
 
             // The customer submits their actual reference after the order is placed.

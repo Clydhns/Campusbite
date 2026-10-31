@@ -1369,7 +1369,7 @@ campusBiteTracking($pdo, $recentOrders);
 
                         <p>
                             View menu items and manage current menu
-                            availability and daily stock.
+                            food availability.
                         </p>
 
                         <a
