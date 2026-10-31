@@ -30,7 +30,10 @@ function setup({ action = null, status = 200, sessionUser = '7', redirected = fa
         getElementById: id => id === 'staff-order-notice' ? notice : stats,
         addEventListener(type, handler) { state.submit = handler; },
         querySelectorAll: () => [button],
-        dispatchEvent(event) { state.tracking = event.detail; }
+        dispatchEvent(event) {
+            if (event.type === 'campusbite:tracking-update') state.tracking = event.detail;
+            else (state.saveEvents ||= []).push(event.detail.saving);
+        }
     };
     const page = {
         body: { dataset: { staffOrdersUser: sessionUser, staffOrdersStore: '3' } },
@@ -50,7 +53,7 @@ function setup({ action = null, status = 200, sessionUser = '7', redirected = fa
     vm.runInNewContext(source, {
         document, window, AbortController, setTimeout, clearTimeout,
         FormData: class { constructor(value) { this.form = value; } },
-        CustomEvent: class { constructor(type, options) { this.detail = options.detail; } },
+        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
         DOMParser: class { parseFromString() { state.parsed = true; return page; } },
         fetch: async (url, options) => {
             state.request = { url, options };
@@ -75,6 +78,7 @@ test('hidden action input does not replace the request URL; completion updates i
     assert.equal(state.notice.textContent, 'Order is now Completed.');
     assert.equal(state.notice.dataset.state, 'success');
     assert.equal(state.button.disabled, false);
+    assert.deepEqual(state.saveEvents,[true,false]);
 });
 
 test('explicit form action attribute is respected', async () => {

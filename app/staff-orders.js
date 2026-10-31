@@ -32,6 +32,8 @@
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
         saving = true;
+        document.body.dataset.staffOrdersSaving = 'true';
+        document.dispatchEvent(new CustomEvent('campusbite:staff-order-save', {detail:{saving:true}}));
         card.setAttribute('aria-busy', 'true');
         buttons.forEach(item => { item.disabled = true; });
         button.textContent = 'Saving…';
@@ -86,9 +88,11 @@
         } finally {
             clearTimeout(timeout);
             saving = false;
+            delete document.body.dataset.staffOrdersSaving;
             card.removeAttribute('aria-busy');
             button.textContent = label;
             buttons.forEach((item, index) => { item.disabled = disabled[index]; });
+            document.dispatchEvent(new CustomEvent('campusbite:staff-order-save', {detail:{saving:false}}));
         }
     });
 })();

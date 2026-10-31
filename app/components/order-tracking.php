@@ -1,5 +1,5 @@
 <?php
-function campusBiteTracking(PDO $pdo, array $orders): void {
+function campusBiteTracking(PDO $pdo, array $orders, bool $live = false): void {
     $orders = array_slice($orders, 0, 3);
     $logs = [];
     if ($orders) {
@@ -31,7 +31,7 @@ function campusBiteTracking(PDO $pdo, array $orders): void {
     ?>
     <section class="cb-tracking-section" aria-label="Order tracking">
         <h2 class="cb-tracking-heading">Order tracking</h2>
-        <p class="cb-tracking-intro">The latest three orders, from the kitchen to pickup. Refresh to see status updates.</p>
+        <p class="cb-tracking-intro">The latest three orders, from the kitchen to pickup. <?= $live ? 'Status updates automatically while this page is open.' : 'Refresh to see status updates.' ?></p>
         <?php if (!$payload): ?>
             <p>No orders to track yet.</p>
         <?php else: ?>

@@ -8,6 +8,7 @@
     const url = new URL('checkout.php', window.location.href);
     url.searchParams.set('success', '1');
     url.searchParams.set('order', order);
+    url.searchParams.set('sync', '1');
     let snapshot = card.innerHTML;
     let timer, controller;
     let failures = 0, stopped = false, leaving = false;
@@ -15,7 +16,7 @@
     function schedule() {
         clearTimeout(timer);
         if (stopped || leaving || document.hidden) return;
-        const interval = ['4', '5'].includes(card.dataset.orderStatus) ? 15000 : 3000;
+        const interval = ['4', '5'].includes(card.dataset.orderStatus) ? 15000 : 1000;
         timer = setTimeout(refresh, Math.min(30000, interval * (failures + 1)));
     }
     function stopForSession() {
@@ -37,8 +38,16 @@
         button.disabled = true;
         const timeout = setTimeout(() => request.abort(), 10000);
         try {
+            url.searchParams.set('version', card.dataset.orderVersion || '');
             const response = await fetch(url.href, {credentials:'same-origin', cache:'no-store', signal:request.signal});
             if (!response.ok) throw new Error('Order update unavailable');
+            if (leaving || document.hidden) return;
+            if (response.status === 204) {
+                status.textContent = 'Live order updates connected.';
+                status.dataset.state = 'connected';
+                failures = 0;
+                return;
+            }
             const page = new DOMParser().parseFromString(await response.text(), 'text/html');
             if (leaving || document.hidden) return;
             if (response.redirected || page.body.dataset.checkoutUser !== user) { stopForSession(); return; }
@@ -60,6 +69,7 @@
                 status.textContent = 'Order updated just now.';
             } else status.textContent = 'Live order updates connected.';
             card.dataset.orderStatus = incoming.dataset.orderStatus;
+            card.dataset.orderVersion = incoming.dataset.orderVersion || '';
             status.dataset.state = 'connected';
             failures = 0;
         } catch (error) {

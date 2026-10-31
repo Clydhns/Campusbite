@@ -23,6 +23,19 @@ Dashboards without orders skip the 255,119-byte raw tracking JavaScript bundle.
 Compressed transfer savings depend on hosting/browser caching. Dashboards with
 orders retain the existing tracking component.
 
+Checkout confirmations check active orders after a one-second interval; the staff
+dashboard checks its own orders after 1.5 seconds, including an initially empty
+workspace. Intervals start after each request finishes, so network and server
+latency still contribute. This is short polling, not a push/WebSocket guarantee.
+Both routes authorize the current account before comparing a private snapshot
+version. Unchanged GET checks return 204 without page HTML or tracking rendering;
+database validation still runs. Changed responses refresh order details and counts.
+Hidden/leaving pages pause requests and failures back off. Staff saves invalidate
+in-flight polls, and payment dialogs or focused editable fields defer replacement.
+The first incoming staff order loads tracking on demand rather than requiring a
+manual page reload. No Supabase client keys, new RLS access, or schema changes are
+needed.
+
 Run `node tools/runtime.test.mjs` and the Node tests in `app/tests/` to verify.
 Query counts are measured by a test-only PDO delegate. These are not production
 load tests or guarantees of a particular end-to-end navigation time; network

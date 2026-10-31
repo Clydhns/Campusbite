@@ -454,7 +454,7 @@ $orders_sql = "
 
     WHERE o.store_id = :store_id
     ORDER BY
-        o.order_datetime DESC
+        o.order_datetime DESC, o.order_id DESC
 
     LIMIT 50
 ";
@@ -510,6 +510,13 @@ if (!empty($orders)) {
 
         $order_items[$order_id][] = $item;
     }
+}
+
+$staffVersion = hash('sha256', json_encode([$staff_id, $store_id, $staffToken, $store, $counts, $orders, $order_items]));
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['sync'] ?? '') === '1'
+    && is_string($_GET['version'] ?? null) && hash_equals($staffVersion, $_GET['version'])) {
+    http_response_code(204);
+    exit;
 }
 
 ?>
@@ -1425,6 +1432,7 @@ if (!empty($orders)) {
     <link rel="stylesheet" href="assets/order-tracking/tracking.css?v=1">
     <?php if ($orders): ?><script src="assets/order-tracking/tracking.js?v=<?= (int) filemtime(__DIR__ . '/assets/order-tracking/tracking.js') ?>" defer></script><?php endif; ?>
     <script src="staff-orders.js?v=<?= (int) filemtime(__DIR__ . '/staff-orders.js') ?>" defer></script>
+    <script src="staff-orders-sync.js?v=<?= (int) filemtime(__DIR__ . '/staff-orders-sync.js') ?>" defer></script>
     <link rel="stylesheet" href="staff-orders.css?v=<?= (int) filemtime(__DIR__ . '/staff-orders.css') ?>">
     <link rel="stylesheet" href="payment-confirmation.css?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.css') ?>">
     <script src="payment-confirmation.js?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.js') ?>" defer></script>
@@ -1436,7 +1444,7 @@ if (!empty($orders)) {
 </head>
 
 
-<body class="cb-commerce" data-staff-orders-user="<?= $staff_id ?>" data-staff-orders-store="<?= $store_id ?>">
+<body class="cb-commerce" data-staff-orders-user="<?= $staff_id ?>" data-staff-orders-store="<?= $store_id ?>" data-staff-orders-version="<?= cbEscape($staffVersion) ?>">
 
 
 <!-- =====================================================
@@ -1458,10 +1466,12 @@ if (!empty($orders)) {
         <p>Confirm payments, prepare orders, and keep every pickup moving.</p>
     </section>
 
+<div id="staff-order-tracking">
 <?php
 require_once __DIR__ . "/components/order-tracking.php";
-campusBiteTracking($pdo, $orders);
+campusBiteTracking($pdo, $orders, true);
 ?>
+</div>
 
 
     <div class="header">
@@ -1573,11 +1583,18 @@ campusBiteTracking($pdo, $orders);
          RECENT ORDERS
     ====================================================== -->
 
+    <div class="staff-orders-toolbar">
     <h2 class="section-title">
         Recent Orders
     </h2>
+    <div class="staff-orders-sync-controls">
+        <span id="staff-orders-sync-status" role="status" aria-live="polite">Checking for new orders shortly.</span>
+        <button id="staff-orders-sync-refresh" type="button">Check now</button>
+    </div>
+    </div>
 
-
+    <div id="staff-orders-list">
+    <noscript><p>Reload this page to see new orders and payment updates.</p></noscript>
     <?php if (empty($orders)): ?>
 
         <div class="empty">
@@ -2108,7 +2125,7 @@ campusBiteTracking($pdo, $orders);
 
     <?php endif; ?>
 
-
+    </div>
 </main>
 
 <div class="staff-order-notice" id="staff-order-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>

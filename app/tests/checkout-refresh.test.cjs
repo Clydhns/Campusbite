@@ -7,9 +7,9 @@ const source = fs.readFileSync(path.join(__dirname, '../checkout-refresh.js'), '
 
 function fixture(options = {}) {
     const events = {}, windowEvents = {}, timers = new Map();
-    const state = { calls:0, restores:0, scrolls:[], url:null, request:null, responseUser:'1', redirected:false, fail:false };
+    const state = { calls:0, restores:0, scrolls:[], url:null, request:null, responseUser:'1', redirected:false, fail:false, responseStatus:200 };
     const action = {dataset:{checkoutAction:'orders'}, focus(options) {state.restores++; assert.equal(options.preventScroll,true);}};
-    const card = {innerHTML:'pending', dataset:{orderId:'12',orderStatus:'1',paymentState:'unpaid'},
+    const card = {innerHTML:'pending', dataset:{orderId:'12',orderStatus:'1',paymentState:'unpaid',orderVersion:'a'.repeat(64)},
         contains:node=>node===action, querySelector:()=>action,
         replaceChildren(...nodes) {this.innerHTML=nodes.map(node=>node.html).join('');} };
     state.incoming = {innerHTML:'pending', dataset:{...card.dataset}, childNodes:[{html:'pending'}]};
@@ -28,12 +28,12 @@ function fixture(options = {}) {
             state.calls++; state.url=new URL(url); state.request=request;
             if (options.pending) return new Promise((_resolve,reject)=>request.signal.addEventListener('abort',()=>reject(new DOMException('Stopped','AbortError'))));
             if (state.fail) return Promise.reject(new Error('Offline'));
-            return Promise.resolve({ok:true,redirected:state.redirected,text:async()=>''});
+            return Promise.resolve({ok:true,status:state.responseStatus,redirected:state.redirected,text:async()=>{state.parsed=true;return '';}});
         }
     });
     return Object.assign(state,{card,status,button,document,events,windowEvents,timers,action,
-        poll(ms=3000) {const entry=[...timers].find(([,timer])=>timer.ms===ms);assert.ok(entry,'Poll scheduled for '+ms);timers.delete(entry[0]);return entry[1].fn();},
-        ready() {this.incoming={innerHTML:'ready',dataset:{orderId:'12',orderStatus:'3',paymentState:'paid'},childNodes:[{html:'ready'}]};}
+        poll(ms=1000) {const entry=[...timers].find(([,timer])=>timer.ms===ms);assert.ok(entry,'Poll scheduled for '+ms);timers.delete(entry[0]);return entry[1].fn();},
+        ready() {this.incoming={innerHTML:'ready',dataset:{orderId:'12',orderStatus:'3',paymentState:'paid',orderVersion:'b'.repeat(64)},childNodes:[{html:'ready'}]};}
     });
 }
 
@@ -62,10 +62,10 @@ test('changed sessions and different orders clear stale confirmation data and st
 });
 test('missing markup and network failures retain the current order and retry automatically',async()=>{
     const page=fixture();page.fail=true;await page.poll();assert.equal(page.card.innerHTML,'pending');
-    assert.equal(page.status.dataset.state,'error');page.fail=false;page.ready();await page.poll(6000);
+    assert.equal(page.status.dataset.state,'error');page.fail=false;page.ready();await page.poll(2000);
     assert.equal(page.card.innerHTML,'ready');assert.equal(page.status.dataset.state,'connected');
     const missing=fixture();missing.incoming=null;await missing.poll();assert.equal(missing.card.innerHTML,'pending');
-    assert.ok([...missing.timers.values()].some(timer=>timer.ms===6000));
+    assert.ok([...missing.timers.values()].some(timer=>timer.ms===2000));
 });
 test('hidden pages abort work and returning to the page resumes checks',async()=>{
     const page=fixture({pending:true});const pending=page.poll();page.document.hidden=true;page.events.visibilitychange();await pending;
@@ -87,4 +87,11 @@ test('completed orders use a slower interval but still accept later payment upda
     const page=fixture();page.incoming.dataset.orderStatus='4';await page.poll();
     page.incoming.innerHTML='refunded';page.incoming.childNodes=[{html:'refunded'}];page.incoming.dataset.paymentState='refunded';
     await page.poll(15000);assert.equal(page.card.dataset.paymentState,'refunded');
+});
+test('one-second conditional checks avoid HTML download and parsing when unchanged',async()=>{
+    const page=fixture();page.responseStatus=204;await page.poll();
+    assert.equal(page.url.searchParams.get('sync'),'1');assert.equal(page.url.searchParams.get('version'),'a'.repeat(64));
+    assert.equal(page.parsed,undefined);assert.equal(page.card.innerHTML,'pending');
+    page.responseStatus=200;page.ready();await page.poll();assert.equal(page.card.dataset.orderVersion,'b'.repeat(64));
+    page.responseStatus=204;await page.poll();assert.equal(page.url.searchParams.get('version'),'b'.repeat(64));
 });

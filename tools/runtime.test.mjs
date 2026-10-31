@@ -347,10 +347,27 @@ try {
   check(expiredCheckout.html.includes('is currently unavailable') && (await db.query('SELECT order_id FROM public.orders')).rows.length===0,
     'An old checkout page cannot order food that is no longer enabled for the current day');
   await setAvailability(1,1);
+  const staffBeforeOrder=await availabilityStaff('staff_dashboard.php');
+  const staffVersion=html=>html.match(/data-staff-orders-version="([a-f0-9]{64})"/)?.[1];
+  const emptyStaffVersion=staffVersion(staffBeforeOrder.html);
+  check(emptyStaffVersion && staffBeforeOrder.html.includes('id="staff-orders-list"')
+    && staffBeforeOrder.html.includes('src="staff-orders-sync.js')
+    && staffBeforeOrder.html.includes('id="staff-orders-sync-status"'),
+    'An empty staff dashboard includes automatic order detection before any first order exists');
+  const unchangedStaff=await availabilityStaff('staff_dashboard.php?sync=1&version='+emptyStaffVersion);
+  check(unchangedStaff.status===204 && unchangedStaff.html==='',
+    'Unchanged staff polling skips the page HTML and tracking render with an empty 204 response');
+  check((await student('staff_dashboard.php?sync=1&version='+emptyStaffVersion)).status===302
+    && (await anon('staff_dashboard.php?sync=1&version='+emptyStaffVersion)).status===302,
+    'Staff polling still rejects students and signed-out visitors');
   const placed=await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Fixture only',item_id:'2',price:'0.01'});
   assert.equal(placed.status,302,placed.html.slice(0,200));
   const order=(await db.query('SELECT order_id,order_number,total_amount,status_id FROM public.orders')).rows[0];
   check(order && /^ORD-\d{8}-001$/.test(order.order_number) && Number(order.total_amount)===100,'Checkout generates an order number, current-price total and atomic order records');
+  const staffNewOrder=await availabilityStaff('staff_dashboard.php?sync=1&version='+emptyStaffVersion);
+  check(staffNewOrder.status===200 && staffVersion(staffNewOrder.html)!==emptyStaffVersion
+    && staffNewOrder.html.includes('data-staff-order="'+order.order_id+'"'),
+    'A student checkout causes the staff sync response to include the new order and fresh counts');
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
   check(true,'Checkout uses today\'s availability without decrementing legacy serving counts');
   const retained=await student('cart.php');
@@ -359,6 +376,10 @@ try {
     'Successful checkout removes only the selected store cart and leaves legacy stock untouched');
   const confirmation=await student('checkout.php?success=1');
   check(confirmation.html.includes('View remaining store carts'),'Order confirmation links back to unpurchased store carts');
+  const checkoutVersion=confirmation.html.match(/data-order-version="([a-f0-9]{64})"/)?.[1];
+  const unchangedCheckout=await student('checkout.php?success=1&order='+order.order_id+'&sync=1&version='+checkoutVersion);
+  check(checkoutVersion && unchangedCheckout.status===204 && unchangedCheckout.html==='',
+    'Unchanged checkout checks return an empty 204 response after verifying order ownership');
   check(placed.location==='checkout.php?success=1&order='+order.order_id
     && confirmation.html.includes('src="checkout-refresh.js')
     && confirmation.html.includes('id="checkout-live-card"')
@@ -377,6 +398,8 @@ try {
   const otherOrder=(await db.query('SELECT o.store_id,o.total_amount,p.method FROM public.orders o JOIN public.payments p ON p.order_id=o.order_id WHERE o.order_id<>$1',[order.order_id])).rows[0];
   check(Number(otherOrder.store_id)===2 && Number(otherOrder.total_amount)===60 && otherOrder.method==='GCash',
     'An already-open second-store checkout remains valid and creates its own order, total and payment');
+  const otherStoreSync=await availabilityStaff('staff_dashboard.php?sync=1&version='+staffVersion(staffNewOrder.html));
+  check(otherStoreSync.status===204,'Another kitchen receiving an order does not change this staff store snapshot');
   const pinnedConfirmation=await student('checkout.php?success=1&order='+order.order_id);
   check(pinnedConfirmation.html.includes('data-order-id="'+order.order_id+'"')
     && pinnedConfirmation.html.includes(order.order_number),
@@ -392,6 +415,12 @@ try {
   const cancelledConfirmation=await student('checkout.php?success=1&order='+order.order_id);
   check(cancelledConfirmation.html.includes('data-order-status="5"') && cancelledConfirmation.html.includes('data-payment-state="cancelled"'),
     'Checkout confirmation reads the current cancelled state, not its original session snapshot');
+  const changedCheckout=await student('checkout.php?success=1&order='+order.order_id+'&sync=1&version='+checkoutVersion);
+  const staffCancelled=await availabilityStaff('staff_dashboard.php?sync=1&version='+staffVersion(staffNewOrder.html));
+  check(changedCheckout.status===200 && changedCheckout.html.includes('data-order-status="5"')
+    && staffCancelled.status===200 && staffVersion(staffCancelled.html)!==staffVersion(staffNewOrder.html)
+    && staffCancelled.html.includes('Cancelled'),
+    'Customer cancellations invalidate both checkout and staff snapshots automatically');
   await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Repeat'});
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
   check(true,'Repeating cancellation cannot change legacy serving counts');
@@ -423,6 +452,9 @@ try {
   const paidConfirmation=await student('checkout.php?success=1&order='+second.order_id);
   check(paidConfirmation.html.includes('data-payment-state="paid"') && paidConfirmation.html.includes('Payment confirmed'),
     'Checkout live responses reflect payment confirmed by the owning staff account');
+  const staffPaid=await staff('staff_dashboard.php?sync=1&version='+staffVersion(staffOrders.html));
+  check(staffPaid.status===200 && staffVersion(staffPaid.html)!==staffVersion(staffOrders.html),
+    'Confirmed payments invalidate the staff live snapshot');
   for(const next of [2,3,4]) {
     const current=await staff('staff_dashboard.php');
     await staff('staff_dashboard.php',{csrf_token:token(current.html),action:'update_status',order_id:String(second.order_id),status_id:String(next)});

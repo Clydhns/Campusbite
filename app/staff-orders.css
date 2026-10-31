@@ -29,3 +29,12 @@
     outline: 3px solid #bf2634;
     outline-offset: 3px;
 }
+.staff-orders-toolbar,.staff-orders-sync-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.staff-orders-toolbar { margin:0 0 18px; }
+.staff-orders-toolbar .section-title { margin:0; }
+.staff-orders-sync-controls { color:#705746; font-size:13px; }
+.staff-orders-sync-controls button { min-height:44px; padding:8px 14px; border:1px solid #f1d5bf; border-radius:12px; background:white; color:#a61f2e; font:inherit; font-weight:800; cursor:pointer; }
+.staff-orders-sync-controls button:focus-visible { outline:3px solid #a61f2e; outline-offset:3px; }
+.staff-orders-sync-controls button:disabled { opacity:.6; cursor:wait; }
+.staff-orders-sync-controls button[hidden] { display:none; }
+#staff-orders-sync-status[data-state=error] { color:#a61f2e; }

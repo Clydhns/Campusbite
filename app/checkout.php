@@ -71,6 +71,12 @@ if (isset($_GET["success"]) && $_GET["success"] === "1") {
         header('Location: orders.php');
         exit;
     }
+    $confirmationVersion = hash('sha256', json_encode([$userId, $successData]));
+    if (($_GET['sync'] ?? '') === '1' && is_string($_GET['version'] ?? null)
+        && hash_equals($confirmationVersion, $_GET['version'])) {
+        http_response_code(204);
+        exit;
+    }
     $paymentState = (int) $successData['status_id'] === 5 ? 'cancelled'
         : ($successData['payment_status'] === 'Refunded' ? 'refunded'
         : ($successData['payment_status'] === 'Paid' ? 'paid'
@@ -867,7 +873,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
             <button id="checkout-sync-refresh" type="button">Check now</button>
         </div>
         <noscript><p>Reload this page to see the latest payment and pickup status.</p></noscript>
-        <div id="checkout-live-card" class="success-card" data-order-id="<?= (int) $successData['order_id'] ?>" data-order-status="<?= (int) $successData['status_id'] ?>" data-payment-state="<?= cbEscape($paymentState) ?>">
+        <div id="checkout-live-card" class="success-card" data-order-id="<?= (int) $successData['order_id'] ?>" data-order-version="<?= cbEscape($confirmationVersion) ?>" data-order-status="<?= (int) $successData['status_id'] ?>" data-payment-state="<?= cbEscape($paymentState) ?>">
 
             <div class="success-icon" aria-hidden="true">
                 <?php if ($paymentState === 'paid'): ?>
