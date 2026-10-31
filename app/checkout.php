@@ -22,6 +22,7 @@ if (!isset($_SESSION["cart"]) || !is_array($_SESSION["cart"])) {
 $cart = [];
 $selectedStoreId = 0;
 $error = "";
+$successData = null;
 if (($_GET['success'] ?? '') !== '1') {
     try {
         $requestedStore = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['store_id'] ?? null) : ($_GET['store'] ?? null);
@@ -43,13 +44,19 @@ if (!$checkoutRequestValid) $error = 'Invalid request. Refresh and try again.';
 |--------------------------------------------------------------------------
 */
 if (isset($_GET["success"]) && $_GET["success"] === "1") {
-
-    $successData = $_SESSION["last_checkout"] ?? null;
-
-    if (!$successData) {
-        header("Location: dashboard.php");
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        http_response_code(405);
+        header('Allow: GET, HEAD');
         exit;
     }
+    // Pin each confirmation tab to its own order, not the latest checkout tab.
+    $confirmationOrderId = filter_var($_GET['order'] ?? ($_SESSION['last_checkout']['order_id'] ?? null), FILTER_VALIDATE_INT,
+        ['options' => ['min_range' => 1]]);
+    if (!$confirmationOrderId) {
+        header("Location: orders.php");
+        exit;
+    }
+    session_write_close();
     // Read the current order/payment state instead of the old checkout snapshot.
     $confirmation = $pdo->prepare('SELECT o.order_id, o.order_number, o.total_amount, o.status_id,
         s.store_name, p.method AS payment_method, p.reference_number, p.payment_status,
@@ -58,7 +65,7 @@ if (isset($_GET["success"]) && $_GET["success"] === "1") {
         JOIN payments p ON p.order_id=o.order_id
         JOIN order_statuses os ON os.status_id=o.status_id
         WHERE o.order_id=? AND o.student_id=? LIMIT 1');
-    $confirmation->execute([(int) ($successData['order_id'] ?? 0), $userId]);
+    $confirmation->execute([$confirmationOrderId, $userId]);
     $successData = $confirmation->fetch();
     if (!$successData) {
         header('Location: orders.php');
@@ -90,6 +97,16 @@ if (isset($_GET["success"]) && $_GET["success"] === "1") {
     }
     $confirmationPaymentLabel = !empty($successData['payment_rejected_at']) ? 'Rejected' : ($paymentState === 'review' ? 'Awaiting verification'
         : ($successData['payment_status'] === 'Unpaid' ? 'Unpaid' : $successData['payment_status']));
+    if ($paymentState === 'paid') {
+        $paidProgress = [
+            2 => ['Your order is being prepared', 'The store is preparing your food. Your pickup status will update here.'],
+            3 => ['Ready for pickup', 'Your food is ready. Pick it up at ' . $successData['store_name'] . '.'],
+            4 => ['Order completed', 'Your order has been completed. Thank you for ordering from ' . $successData['store_name'] . '.']
+        ];
+        if (isset($paidProgress[(int) $successData['status_id']])) {
+            [$confirmationTitles['paid'], $confirmationMessages['paid']] = $paidProgress[(int) $successData['status_id']];
+        }
+    }
 }
 
 /*
@@ -418,7 +435,7 @@ if ($checkoutRequestValid && $_SERVER["REQUEST_METHOD"] === "POST" &&
             | REDIRECT TO SUCCESS PAGE
             |--------------------------------------------------------------------------
             */
-            header("Location: checkout.php?success=1");
+            header("Location: checkout.php?success=1&order=" . $orderId);
             exit;
 
         } catch (Throwable $e) {
@@ -826,11 +843,14 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
     <link rel="stylesheet" href="checkout-food.css?v=<?= (int) filemtime(__DIR__ . '/checkout-food.css') ?>">
     <link rel="stylesheet" href="payment-confirmation.css?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.css') ?>">
     <script src="payment-confirmation.js?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.js') ?>" defer></script>
+    <?php if ($successData): ?>
+    <script src="checkout-refresh.js?v=<?= (int) filemtime(__DIR__ . '/checkout-refresh.js') ?>" defer></script>
+    <?php endif; ?>
     <link rel="stylesheet" href="student-navbar.css?v=1">
 <link rel="stylesheet" href="stores.css?v=1">
 </head>
 
-<body class="cb-student">
+<body class="cb-student" data-checkout-user="<?= $userId ?>">
 
 <?php require __DIR__ . "/components/student-navbar.php"; ?>
 
@@ -842,7 +862,12 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
 
     <div class="success-page">
 
-        <div class="success-card" data-payment-state="<?= cbEscape($paymentState) ?>">
+        <div class="checkout-live-toolbar">
+            <span id="checkout-sync-status" role="status" aria-live="polite" data-state="waiting">Checking for order updates shortly.</span>
+            <button id="checkout-sync-refresh" type="button">Check now</button>
+        </div>
+        <noscript><p>Reload this page to see the latest payment and pickup status.</p></noscript>
+        <div id="checkout-live-card" class="success-card" data-order-id="<?= (int) $successData['order_id'] ?>" data-order-status="<?= (int) $successData['status_id'] ?>" data-payment-state="<?= cbEscape($paymentState) ?>">
 
             <div class="success-icon" aria-hidden="true">
                 <?php if ($paymentState === 'paid'): ?>
@@ -961,12 +986,13 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
 
             <div class="success-buttons">
                 <?php if (!empty($_SESSION['cart'])): ?>
-                    <a href="cart.php" class="btn btn-secondary">View remaining store carts</a>
+                    <a href="cart.php" class="btn btn-secondary" data-checkout-action="cart">View remaining store carts</a>
                 <?php endif; ?>
 
                 <a
                     href="orders.php<?= $successData['payment_method'] === 'GCash' && in_array($paymentState, ['unpaid', 'review'], true) ? '#payment-proof-' . (int) $successData['order_id'] : '' ?>"
                     class="btn btn-primary"
+                    data-checkout-action="orders"
                 >
                     <?= $paymentState === 'unpaid' && $successData['payment_method'] === 'GCash' ? 'Pay / submit GCash receipt' : ($paymentState === 'review' ? 'View payment submission' : 'View My Orders') ?>
                 </a>
@@ -974,6 +1000,7 @@ catch (RuntimeException $exception) { if ($error === "") $error = $exception->ge
                 <a
                     href="menu.php"
                     class="btn btn-secondary"
+                    data-checkout-action="menu"
                 >
                     Order More Food
                 </a>

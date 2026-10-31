@@ -340,6 +340,8 @@ try {
   }
   check(checkout.html.includes('name="store_id" value="1"') && checkout.html.includes('Fixture Meal') && !checkout.html.includes('Other Meal'),
     'Checkout displays only the selected kitchen and carries its store ID through submission');
+  check(!checkout.html.includes('src="checkout-refresh.js'),
+    'An unsubmitted checkout form does not poll or risk replacing payment choices');
   await db.exec('UPDATE public.daily_menu SET is_available=0 WHERE item_id=1 AND menu_date=CURRENT_DATE');
   const expiredCheckout=await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:''});
   check(expiredCheckout.html.includes('is currently unavailable') && (await db.query('SELECT order_id FROM public.orders')).rows.length===0,
@@ -357,12 +359,28 @@ try {
     'Successful checkout removes only the selected store cart and leaves legacy stock untouched');
   const confirmation=await student('checkout.php?success=1');
   check(confirmation.html.includes('View remaining store carts'),'Order confirmation links back to unpurchased store carts');
+  check(placed.location==='checkout.php?success=1&order='+order.order_id
+    && confirmation.html.includes('src="checkout-refresh.js')
+    && confirmation.html.includes('id="checkout-live-card"')
+    && confirmation.html.includes('data-order-id="'+order.order_id+'"')
+    && confirmation.html.includes('id="checkout-sync-status"')
+    && confirmation.html.includes('id="checkout-sync-refresh"'),
+    'Successful checkout pins its order ID and renders live status checks with a manual retry control');
+  for(const value of ['999999','-1','bad']) {
+    const invalid=await student('checkout.php?success=1&order='+value);
+    assert.equal(invalid.status,302);assert.equal(invalid.location,'orders.php');
+  }
+  check(true,'Invalid or missing order IDs cannot render a checkout confirmation');
   await student('checkout.php',{csrf_token:token(checkout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'Repeat'});
   check((await db.query('SELECT order_id FROM public.orders')).rows.length===1,'A stale checkout submission cannot duplicate an order or consume another store cart');
   await student('checkout.php',{csrf_token:token(otherCheckout.html),store_id:'2',action:'place_order',payment_method:'GCash',remarks:'Second kitchen'});
   const otherOrder=(await db.query('SELECT o.store_id,o.total_amount,p.method FROM public.orders o JOIN public.payments p ON p.order_id=o.order_id WHERE o.order_id<>$1',[order.order_id])).rows[0];
   check(Number(otherOrder.store_id)===2 && Number(otherOrder.total_amount)===60 && otherOrder.method==='GCash',
     'An already-open second-store checkout remains valid and creates its own order, total and payment');
+  const pinnedConfirmation=await student('checkout.php?success=1&order='+order.order_id);
+  check(pinnedConfirmation.html.includes('data-order-id="'+order.order_id+'"')
+    && pinnedConfirmation.html.includes(order.order_number),
+    'A confirmation tab continues tracking its original order after checkout at another kitchen');
   const orders=await student('orders.php');
   check((await student('dashboard.php')).html.includes('src="assets/order-tracking/tracking.js'),
     'Order tracking still loads when the signed-in student has orders to display');
@@ -371,6 +389,9 @@ try {
   assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[order.order_id])).rows[0].status_id),5);
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
   check(true,'Customer cancellation updates the order without changing legacy serving counts');
+  const cancelledConfirmation=await student('checkout.php?success=1&order='+order.order_id);
+  check(cancelledConfirmation.html.includes('data-order-status="5"') && cancelledConfirmation.html.includes('data-payment-state="cancelled"'),
+    'Checkout confirmation reads the current cancelled state, not its original session snapshot');
   await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Repeat'});
   assert.equal(Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE daily_menu_id=1')).rows[0].quantity_remaining),10);
   check(true,'Repeating cancellation cannot change legacy serving counts');
@@ -399,12 +420,19 @@ try {
   const staffOrders=await staff('staff_dashboard.php');
   await staff('staff_dashboard.php',{csrf_token:token(staffOrders.html),action:'confirm_payment',order_id:String(second.order_id)});
   assert.equal((await db.query('SELECT payment_status FROM public.payments WHERE order_id=$1',[second.order_id])).rows[0].payment_status,'Paid');
+  const paidConfirmation=await student('checkout.php?success=1&order='+second.order_id);
+  check(paidConfirmation.html.includes('data-payment-state="paid"') && paidConfirmation.html.includes('Payment confirmed'),
+    'Checkout live responses reflect payment confirmed by the owning staff account');
   for(const next of [2,3,4]) {
     const current=await staff('staff_dashboard.php');
     await staff('staff_dashboard.php',{csrf_token:token(current.html),action:'update_status',order_id:String(second.order_id),status_id:String(next)});
     assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[second.order_id])).rows[0].status_id),next);
+    const progress=await student('checkout.php?success=1&order='+second.order_id);
+    assert.ok(progress.html.includes('data-order-status="'+next+'"'));
+    assert.ok(progress.html.includes({2:'Your order is being prepared',3:'Ready for pickup',4:'Order completed'}[next]));
   }
   check(true,'Staff payment confirmation and Preparing / Ready / Completed transitions work');
+  check(true,'Checkout live responses show the latest preparing, ready-for-pickup and completed headings');
   const other=client(); await signin(other,'other@example.invalid');
   const otherOrders=await other('staff_dashboard.php');
   // An empty workspace renders no action forms; inspect only the disposable test
@@ -453,6 +481,10 @@ try {
   check(welcome.status===200 && welcome.html.includes('data-dashboard-user="'+newStudent.user_id+'"')
     && (await registration('profile.php')).html.includes('newstudent@example.invalid'),
     'The newly registered student can open their own dashboard and profile without logging in again');
+  const privateConfirmation=await registration('checkout.php?success=1&order='+second.order_id);
+  check(privateConfirmation.status===302 && privateConfirmation.location==='orders.php'
+    && !privateConfirmation.html.includes(second.order_number),
+    'A different student cannot read an order through the pinned checkout confirmation URL');
   check((await registration('admin_dashboard.php')).status===302 && (await registration('staff_dashboard.php')).status===302,
     'Posted administrator role fields cannot grant privileged access during automatic sign-in');
   await registration('logout.php');

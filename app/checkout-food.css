@@ -35,6 +35,12 @@
 .cb-student .checkout-payment-note { font-size:12px; color:var(--gray); line-height:1.7; margin:0 0 20px; }
 .cb-student .checkout-actions .btn { min-height:46px; }
 .cb-student .success-page { max-width:740px; padding:32px; margin:32px auto; animation:cb-page-enter .35s ease-out both; }
+.checkout-live-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 16px; color:var(--gray); font-size:13px; }
+.checkout-live-toolbar button { min-height:44px; padding:8px 14px; border:1px solid var(--border); border-radius:12px; background:white; color:var(--tomato-dark); font:inherit; font-weight:800; cursor:pointer; }
+.checkout-live-toolbar button:focus-visible { outline:3px solid #a61f2e; outline-offset:3px; }
+.checkout-live-toolbar button:disabled { opacity:.6; cursor:wait; }
+.checkout-live-toolbar button[hidden] { display:none; }
+#checkout-sync-status[data-state=error] { color:#a61f2e; }
 .cb-student .success-card { border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow-md); padding:36px; }
 .cb-student .success-icon { background:var(--green-light); color:var(--green-dark); }
 .cb-student .success-card[data-payment-state="unpaid"] .success-icon,.cb-student .success-card[data-payment-state="review"] .success-icon { display:flex; align-items:center; justify-content:center; background:#fff0df; color:#8b4e20; }
