@@ -35,13 +35,6 @@
 .cb-store-profile-actions { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; padding-top:20px; border-top:1px solid #f1d5bf; }
 .cb-store-profile-actions p { margin:0; color:#796554; font-size:13px; }
 .cb-store-profile-actions .btn { min-width:150px; }
-.cb-store-password { margin-top:28px; scroll-margin-top:24px; }
-.cb-store-password > summary { cursor:pointer; color:#3b2a20; font-size:18px; font-weight:900; }
-.cb-store-password > summary:focus-visible { outline:3px solid #a61f2e; outline-offset:4px; }
-.cb-store-password-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0 20px; }
-.cb-store-password-form > div { min-width:0; }
-.cb-store-password-form > p,.cb-store-password-form > .cb-store-actions { grid-column:1 / -1; }
-@media(max-width:960px) { .cb-store-password-form { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:960px) { .cb-store-profile-form { grid-template-columns:minmax(0,1fr); align-items:start; } .cb-store-profile-form > .cb-store-profile-column { align-self:start; } }
 @media(max-width:540px) { .cb-store-profile-form > .cb-store-profile-column { padding:20px; } .cb-store-profile-actions { align-items:stretch; flex-direction:column; } .cb-store-profile-actions .btn { width:100%; } }
 .cb-store-profile-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }

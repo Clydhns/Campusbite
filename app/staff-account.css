@@ -1,0 +1,10 @@
+.staff-account-column { display:grid; gap:24px; min-width:0; }
+.cb-store-password { scroll-margin-top:24px; }
+.cb-store-password > summary { cursor:pointer; color:#3b2a20; font-size:18px; font-weight:900; }
+.cb-store-password > summary:focus-visible { outline:3px solid #a61f2e; outline-offset:4px; }
+.cb-store-password > .profile-note { margin-top:18px; }
+.cb-store-password-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.cb-store-password-form > div { min-width:0; }
+.cb-store-password-form > .staff-password-current,.cb-store-password-form > p,.cb-store-password-form > .profile-actions { grid-column:1 / -1; }
+.cb-store-password-form > p,.cb-store-password-form > .profile-actions { margin:0; }
+@media(max-width:540px) { .cb-store-password-form { grid-template-columns:minmax(0,1fr); } }

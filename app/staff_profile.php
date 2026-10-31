@@ -19,6 +19,7 @@ if (!$profile) {
     exit;
 }
 require_once __DIR__ . '/config/stores.php';
+require_once __DIR__ . '/config/staff-password.php';
 $store = cbStaffStore($pdo);
 function profileEscape($value): string {
     return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
@@ -29,8 +30,37 @@ if (empty($_SESSION["staff_profile_csrf"])) {
 $success = $_SESSION["staff_profile_success"] ?? "";
 unset($_SESSION["staff_profile_success"]);
 $error = "";
+$passwordError = '';
+$passwordSuccess = $_SESSION['staff_password_success'] ?? '';
+unset($_SESSION['staff_password_success']);
+$passwordToken = cbCsrf('staff_password_csrf');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'change_password') {
+    try {
+        if (!cbCheckCsrf('staff_password_csrf')) throw new RuntimeException('Invalid request. Refresh and try again.');
+        if (time() < (int) ($_SESSION['staff_password_retry_after'] ?? 0)) throw new RuntimeException('Too many attempts. Please wait a minute before trying again.');
+        $hash = cbChangeStaffPassword($pdo, (int) $_SESSION['user_id'], $_POST);
+        $_SESSION['staff_credential_stamp'] = cbStaffCredentialStamp($hash);
+        unset($_SESSION['staff_password_csrf'], $_SESSION['store_csrf'], $_SESSION['staff_profile_csrf'], $_SESSION['staff_password_failures'], $_SESSION['staff_password_retry_after']);
+        session_regenerate_id(true);
+        $_SESSION['staff_password_success'] = 'Password changed. Use your new password next time you sign in. Other sessions have been signed out.';
+        header('Location: staff_profile.php#change-password');
+        exit;
+    } catch (PDOException $exception) {
+        error_log('Unable to change staff password.');
+        $passwordError = 'Unable to change your password right now. Please try again.';
+    } catch (RuntimeException $exception) {
+        $passwordError = $exception->getMessage();
+        if ($passwordError === 'Your current password is incorrect.') {
+            $_SESSION['staff_password_failures'] = (int) ($_SESSION['staff_password_failures'] ?? 0) + 1;
+            if ($_SESSION['staff_password_failures'] >= 5) {
+                $_SESSION['staff_password_retry_after'] = time() + 60;
+                $_SESSION['staff_password_failures'] = 0;
+            }
+        }
+    }
+}
 $values = $profile;
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'change_password') {
     foreach (["first_name", "last_name", "email", "contact_number"] as $field) {
         $values[$field] = is_string($_POST[$field] ?? null) ? trim($_POST[$field]) : "";
     }
@@ -89,6 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <link rel="stylesheet" href="student-pages.css?v=1">
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="admin-profile.css?v=1">
+    <link rel="stylesheet" href="staff-account.css?v=<?= (int) filemtime(__DIR__ . '/staff-account.css') ?>">
     <link rel="stylesheet" href="staff-navbar.css?v=<?= (int) filemtime(__DIR__ . '/staff-navbar.css') ?>">
 </head>
 <body class="cb-student">
@@ -116,9 +147,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </dl>
             <p class="profile-note">Your account ID, role, and access permissions cannot be changed here.</p>
         </aside>
+        <div class="staff-account-column">
         <section class="profile-card" aria-labelledby="profile-details-title">
             <h2 id="profile-details-title">Personal details</h2>
-            <p class="profile-note">Confirm with your current password to save changes.</p>
+            <p class="profile-note">Your current password confirms personal-information changes. Use Change password below to update your password.</p>
             <form method="POST" action="staff_profile.php">
                 <input type="hidden" name="csrf_token" value="<?= profileEscape($_SESSION["staff_profile_csrf"]) ?>">
                 <div class="profile-fields">
@@ -131,6 +163,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="profile-actions"><button class="btn" type="submit">Save changes</button><a class="btn btn-secondary" href="staff_menu.php?view=settings">Back to Store Profile</a></div>
             </form>
         </section>
+        <details class="profile-card cb-store-password" id="change-password" <?= $passwordError !== '' || $passwordSuccess !== '' ? 'open' : '' ?>>
+            <summary>Change password</summary>
+            <p class="profile-note">Change the password for this account. Other sessions will be signed out.</p>
+            <?php if ($passwordError !== ''): ?><p class="error-message" role="alert"><?= profileEscape($passwordError) ?></p><?php endif; ?>
+            <?php if ($passwordSuccess !== ''): ?><p class="success-message" role="status"><?= profileEscape($passwordSuccess) ?></p><?php endif; ?>
+            <form method="POST" action="staff_profile.php#change-password" class="cb-store-password-form">
+                <input type="hidden" name="action" value="change_password"><input type="hidden" name="csrf_token" value="<?= profileEscape($passwordToken) ?>">
+                <div class="staff-password-current"><label for="account-current-password">Current password</label><input id="account-current-password" name="current_password" type="password" autocomplete="current-password" required></div>
+                <div><label for="account-new-password">New password</label><input id="account-new-password" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" aria-describedby="account-password-help" required></div>
+                <div><label for="account-confirm-password">Confirm new password</label><input id="account-confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+                <p class="profile-note" id="account-password-help">At least 8 characters, up to 72 bytes. Choose a unique password different from your current one.</p>
+                <div class="profile-actions"><button type="submit" class="btn">Change password</button></div>
+            </form>
+        </details>
+        </div>
     </div>
 </main>
 </body>

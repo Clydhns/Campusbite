@@ -806,15 +806,28 @@ try {
   await db.exec('UPDATE public.users SET is_active=0 WHERE user_id=3');
   assert.equal((await other('staff_dashboard.php')).status,302);
   check(true,'A deactivated account is rejected on its next request');
-  const securityPage=await staff('staff_menu.php?view=settings');
+  const storeSettings=await staff('staff_menu.php?view=settings');
+  check(!storeSettings.html.includes('value="change_password"') && !storeSettings.html.includes('cb-store-password-form'),
+    'Store Profile contains store settings only, without a password form');
+  const securityPage=await staff('staff_profile.php');
   const passwordForm=securityPage.html.match(/<form\b[^>]*class="cb-store-password-form"[\s\S]*?<\/form>/)?.[0] || '';
   check(passwordForm.includes('value="change_password"') && passwordForm.includes('name="current_password"')
     && passwordForm.includes('name="new_password"') && passwordForm.includes('name="confirm_password"'),
-    'Store Profile offers a separate current/new/confirm password form without mixing credentials into store settings');
+    'Account details offers a separate current/new/confirm password form beneath Personal details');
   const originalStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash;
   const otherStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=3')).rows[0].password_hash;
   const newStaffPassword='New fixture '+randomBytes(18).toString('hex');
   const change={action:'change_password',csrf_token:token(passwordForm),current_password:password,new_password:newStaffPassword,confirm_password:newStaffPassword};
+  await staff('staff_menu.php?view=settings',change);
+  await staff('staff_menu.php?view=settings',{...change,csrf_token:token(storeSettings.html)});
+  check((await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===originalStaffHash,
+    'The old Store Profile endpoint cannot change passwords with either password or store CSRF tokens');
+  const personalDetailsForm=securityPage.html.match(/<form method="POST" action="staff_profile.php">[\s\S]*?<\/form>/)[0];
+  const personalDetails=await staff('staff_profile.php',{csrf_token:token(personalDetailsForm),first_name:'Updated staff',last_name:'STAFF',email:'staff@example.invalid',contact_number:'',current_password:password});
+  check(personalDetails.status===302 && personalDetails.location==='staff_profile.php'
+    && (await db.query('SELECT first_name FROM users WHERE user_id=2')).rows[0].first_name==='Updated staff',
+    'Personal details still saves independently from the password form');
+  const beforePasswordProfile=(await db.query('SELECT first_name,last_name,email,contact_number FROM users WHERE user_id=2')).rows[0];
   for(const overrides of [
     {csrf_token:'invalid'}, {current_password:'Wrong fixture password'},
     {confirm_password:'Does not match'}, {new_password:'short',confirm_password:'short'},
@@ -823,37 +836,38 @@ try {
     {new_password:password,confirm_password:password},
     {new_password:undefined,'new_password[]':'Invalid array'}
   ]) {
-    const attempt=await staff('staff_menu.php?view=settings',{...change,...overrides});
+    const attempt=await staff('staff_profile.php',{...change,...overrides});
     assert.equal(attempt.status,200);
     assert.ok(attempt.html.includes('role="alert"'));
     assert.ok(!attempt.html.includes(newStaffPassword) && !attempt.html.includes(password));
     assert.equal((await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash,originalStaffHash);
   }
   check(true,'Wrong passwords, invalid CSRF, mismatches, short/oversized/null/array input and password reuse cannot change credentials or echo secrets');
-  assert.equal((await student('staff_menu.php?view=settings',change)).status,302);
-  assert.equal((await client()('staff_menu.php?view=settings',change)).status,302);
+  assert.equal((await student('staff_profile.php',change)).status,302);
+  assert.equal((await client()('staff_profile.php',change)).status,302);
   check((await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===originalStaffHash,
     'Students and signed-out visitors cannot use the staff password action');
   const otherDevice=client(); await signin(otherDevice,'staff@example.invalid');
-  const preChange=await staff('staff_menu.php?view=settings');
+  const preChange=await staff('staff_profile.php');
   const obsoleteSession=client(preChange.sessionCookie);
   const beforePasswordStore=(await db.query('SELECT * FROM stores WHERE store_id=1')).rows[0];
-  const changedPassword=await staff('staff_menu.php?view=settings',{...change,user_id:'3',role_id:'1'});
-  check(changedPassword.status===302 && changedPassword.location==='staff_menu.php?view=settings#change-password'
+  const changedPassword=await staff('staff_profile.php',{...change,user_id:'3',role_id:'1'});
+  check(changedPassword.status===302 && changedPassword.location==='staff_profile.php#change-password'
     && changedPassword.sessionCookie!==preChange.sessionCookie,
-    'Successful password change returns to Store Profile and rotates the current session ID');
+    'Successful password change returns to Account details and rotates the current session ID');
   const changedStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash;
   check(changedStaffHash!==originalStaffHash && changedStaffHash!==newStaffPassword
     && (await db.query('SELECT password_hash FROM users WHERE user_id=3')).rows[0].password_hash===otherStaffHash,
     'A new salted hash is saved only for the authenticated store account, ignoring forged account and role fields');
   assert.deepEqual((await db.query('SELECT * FROM stores WHERE store_id=1')).rows[0],beforePasswordStore);
-  const passwordConfirmed=await staff('staff_menu.php?view=settings');
+  assert.deepEqual((await db.query('SELECT first_name,last_name,email,contact_number FROM users WHERE user_id=2')).rows[0],beforePasswordProfile);
+  const passwordConfirmed=await staff('staff_profile.php');
   check(passwordConfirmed.status===200 && passwordConfirmed.html.includes('Password changed.')
     && !passwordConfirmed.html.includes(newStaffPassword),
     'Password saving leaves store settings unchanged and the current session signed in with a non-secret confirmation');
   check((await otherDevice('staff_dashboard.php')).status===302 && (await obsoleteSession('staff_dashboard.php')).status===302,
     'Other staff sessions and the pre-rotation session cookie are rejected after a password change');
-  const replay=await staff('staff_menu.php?view=settings',change);
+  const replay=await staff('staff_profile.php',change);
   check(replay.html.includes('Invalid request.') && (await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===changedStaffHash,
     'The old password-change CSRF token cannot be replayed after success');
   const passwordLogin=client();
@@ -872,11 +886,11 @@ try {
   await db.query('UPDATE campusbite_private.sessions SET payload=$1 WHERE session_key=$2',[Buffer.from(withoutStamp).toString('base64'),legacyKey]);
   check((await passwordLogin('staff_dashboard.php')).status===302,
     'Legacy staff sessions without a credential stamp must sign in again instead of bypassing password-change revocation');
-  const throttlingPage=await staff('staff_menu.php?view=settings');
+  const throttlingPage=await staff('staff_profile.php');
   const throttlingForm=throttlingPage.html.match(/<form\b[^>]*class="cb-store-password-form"[\s\S]*?<\/form>/)[0];
   const throttledChange={...change,csrf_token:token(throttlingForm),current_password:'Wrong current fixture',new_password:'Another fixture password',confirm_password:'Another fixture password'};
-  for(let attempt=0;attempt<5;attempt++) await staff('staff_menu.php?view=settings',throttledChange);
-  const throttled=await staff('staff_menu.php?view=settings',{...throttledChange,current_password:newStaffPassword});
+  for(let attempt=0;attempt<5;attempt++) await staff('staff_profile.php',throttledChange);
+  const throttled=await staff('staff_profile.php',{...throttledChange,current_password:newStaffPassword});
   check(throttled.html.includes('Too many attempts.')
     && (await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===changedStaffHash,
     'Five incorrect current-password attempts pause further password changes for one minute without modifying the account');

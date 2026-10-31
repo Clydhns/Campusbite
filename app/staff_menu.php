@@ -3,39 +3,9 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 header('Cache-Control: private, no-store, max-age=0');
 ob_start(); require_once __DIR__ . '/config/connection.php'; ob_end_clean();
 require_once __DIR__ . '/config/stores.php';
-require_once __DIR__ . '/config/staff-password.php';
 $store = cbStaffStore($pdo);
 $token = cbCsrf('store_csrf');
 $error = '';
-$passwordError = '';
-$passwordSuccess = $_SESSION['staff_password_success'] ?? '';
-unset($_SESSION['staff_password_success']);
-$passwordToken = cbCsrf('staff_password_csrf');
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'change_password') {
-    try {
-        if (!cbCheckCsrf('staff_password_csrf')) throw new RuntimeException('Invalid request. Refresh and try again.');
-        if (time() < (int) ($_SESSION['staff_password_retry_after'] ?? 0)) throw new RuntimeException('Too many attempts. Please wait a minute before trying again.');
-        $hash = cbChangeStaffPassword($pdo, (int) $_SESSION['user_id'], $_POST);
-        $_SESSION['staff_credential_stamp'] = cbStaffCredentialStamp($hash);
-        unset($_SESSION['staff_password_csrf'], $_SESSION['store_csrf'], $_SESSION['staff_profile_csrf'], $_SESSION['staff_password_failures'], $_SESSION['staff_password_retry_after']);
-        session_regenerate_id(true);
-        $_SESSION['staff_password_success'] = 'Password changed. Use your new password next time you sign in. Other sessions have been signed out.';
-        header('Location: staff_menu.php?view=settings#change-password');
-        exit;
-    } catch (PDOException $exception) {
-        error_log('Unable to change staff password.');
-        $passwordError = 'Unable to change your password right now. Please try again.';
-    } catch (RuntimeException $exception) {
-        $passwordError = $exception->getMessage();
-        if ($passwordError === 'Your current password is incorrect.') {
-            $_SESSION['staff_password_failures'] = (int) ($_SESSION['staff_password_failures'] ?? 0) + 1;
-            if ($_SESSION['staff_password_failures'] >= 5) {
-                $_SESSION['staff_password_retry_after'] = time() + 60;
-                $_SESSION['staff_password_failures'] = 0;
-            }
-        }
-    }
-}
 $photoChange = ['new'=>null,'old'=>null];
 $qrChange = ['new'=>null,'old'=>null];
 $saveMessage = 'Your store has been updated.';
@@ -43,7 +13,7 @@ $toggleJson = ($_POST['action'] ?? '') === 'set_food_availability'
     && str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
 $success = $_SESSION['store_flash'] ?? '';
 unset($_SESSION['store_flash']);
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'change_password') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (empty($_POST)) throw new RuntimeException('Upload too large. Choose a photo up to 3 MB and try again.');
         if (!cbCheckCsrf('store_csrf')) throw new RuntimeException('Invalid request. Refresh and try again.');
@@ -150,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $gcashNumber = is_string($_POST['gcash_number'] ?? null) ? $_POST['gcash_number'] : '';
 }
 $settingsView = $_SERVER['REQUEST_METHOD'] === 'POST'
-    ? in_array($_POST['action'] ?? '', ['save_store','change_password'], true)
+    ? ($_POST['action'] ?? '') === 'save_store'
     : (($_GET['view'] ?? '') === 'settings' && !$editId && ($_GET['add'] ?? '') !== '1');
 $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
     || ($error !== '' && ($_POST['action'] ?? '') === 'save_food');
@@ -202,19 +172,6 @@ $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
 </section>
 <div class="cb-store-profile-actions"><p>Save to apply changes to your store.</p><button class="btn" type="submit">Save store</button></div>
 </form>
-<details class="cb-store-panel cb-store-password" id="change-password" <?= $passwordError !== '' || $passwordSuccess !== '' ? 'open' : '' ?>>
-<summary>Change password</summary>
-<p>Change the password for the account managing this store. Other sessions will be signed out.</p>
-<?php if ($passwordError !== ''): ?><p class="error-message" role="alert"><?= cbEscape($passwordError) ?></p><?php endif; ?>
-<?php if ($passwordSuccess !== ''): ?><p class="success-message" role="status"><?= cbEscape($passwordSuccess) ?></p><?php endif; ?>
-<form method="POST" action="staff_menu.php?view=settings#change-password" class="cb-store-password-form">
-<input type="hidden" name="action" value="change_password"><input type="hidden" name="csrf_token" value="<?= cbEscape($passwordToken) ?>">
-<div><label for="store-current-password">Current password</label><input id="store-current-password" name="current_password" type="password" autocomplete="current-password" required></div>
-<div><label for="store-new-password">New password</label><input id="store-new-password" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" aria-describedby="store-password-help" required></div>
-<div><label for="store-confirm-password">Confirm new password</label><input id="store-confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
-<p id="store-password-help">At least 8 characters, up to 72 bytes. Choose a unique password different from your current one.</p>
-<div class="cb-store-actions"><button type="submit" class="btn">Change password</button></div>
-</form></details>
 </section>
 <?php else: ?>
 <details class="cb-store-panel cb-food-editor" id="food-editor" <?= $editorOpen ? 'open' : '' ?>>
