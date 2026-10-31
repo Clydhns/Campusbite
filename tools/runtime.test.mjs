@@ -184,6 +184,31 @@ try {
   await db.query('UPDATE public.daily_menu SET menu_date=CURRENT_DATE-1 WHERE item_id=$1',[juice.item_id]);
   check(dashboardCard((await student('dashboard.php')).html,juice.item_id).includes('data-available="false"'),
     'Daily expiry applies to drinks as well as meals');
+  const packaged=[];
+  for (const [name,persistent,category] of [
+    ['Coke',true,beverages.category_id],['Sprite',true,beverages.category_id],
+    ['Bottled Water (500ml)',true,beverages.category_id],['Water',true,beverages.category_id],
+    ['Pepsi',true,beverages.category_id],['Royal',true,beverages.category_id],['7UP',true,beverages.category_id],
+    ['Coke Float',false,beverages.category_id],['Watermelon Juice',false,beverages.category_id],
+    ['Iced Tea',false,beverages.category_id],['Coke Chicken',false,1]
+  ]) {
+    const item=(await db.query('INSERT INTO public.menu_items(category_id,item_name,price,store_id) VALUES ($1,$2,20,1) RETURNING item_id',[category,name])).rows[0];
+    packaged.push({...item,name,persistent});
+  }
+  const drinkHome=await student('dashboard.php');
+  for(const item of packaged) assert.ok(dashboardCard(drinkHome.html,item.item_id).includes(`data-available="${item.persistent}"`),item.name);
+  check(true,'Soft drinks and water stay available without a daily record, but juice, fresh drinks and food do not inherit that exception');
+  const coke=packaged.find(item=>item.name==='Coke');
+  const packagedOff=await setAvailability(coke.item_id,0);
+  check(JSON.parse(packagedOff.html).keeps_availability===true && JSON.parse(packagedOff.html).available_until===null
+    && dashboardCard((await student('dashboard.php')).html,coke.item_id).includes('data-available="false"'),
+    'Staff can manually switch soft drinks off; no-reset mode never overrides their choice');
+  await setAvailability(coke.item_id,1);
+  await db.query('DELETE FROM public.daily_menu WHERE item_id=$1',[coke.item_id]);
+  const staffDrinks=await availabilityStaff('staff_menu.php?edit='+coke.item_id);
+  check(staffDrinks.html.includes(`data-availability-reset="never" data-item-id="${coke.item_id}"`)
+    && staffDrinks.html.includes('No daily reset'),
+    'Staff cards label soft drinks as no-reset items and retain the exception in the editor');
   await db.exec('UPDATE public.menu_items SET store_id=1 WHERE item_id=2; UPDATE public.menu_items SET is_available=0 WHERE item_id=1');
   const alternative=await student('dashboard.php');
   check(heroSection(alternative.html).includes('Other Meal') && !heroSection(alternative.html).includes('Fixture Meal')
@@ -402,6 +427,14 @@ try {
   check(manualPlaced.status===302 && Number((await db.query('SELECT quantity FROM public.order_items ORDER BY order_item_id DESC LIMIT 1')).rows[0].quantity)===12
     && Number((await db.query('SELECT quantity_remaining FROM public.daily_menu WHERE item_id=1')).rows[0].quantity_remaining)===0,
     'An available food checks out above old stock counts without decrementing legacy inventory');
+  const drinkShopper=client(); await signin(drinkShopper,'student@example.invalid');
+  const drinksMenu=await drinkShopper('menu.php?store=1');
+  const addedCoke=await drinkShopper('menu.php?store=1',{csrf_token:token(drinksMenu.html),item_id:String(coke.item_id),quantity:'1'});
+  assert.ok(addedCoke.html.includes('added to cart'));
+  const drinkCheckout=await drinkShopper('checkout.php?store=1');
+  const drinkPlaced=await drinkShopper('checkout.php',{csrf_token:token(drinkCheckout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'No-reset drink fixture'});
+  check(drinkPlaced.status===302 && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[coke.item_id])).rows.length===0,
+    'Soft drinks pass menu, cart and checkout validation without a daily availability record');
   const switchSignup=await separateCarts('register.php');
   await separateCarts('register.php',{...signup,csrf_token:token(switchSignup.html),id_number:'FIXTURE-SWITCH',email:'switch@example.invalid',first_name:'Switch'});
   const switchedCart=await separateCarts('cart.php');

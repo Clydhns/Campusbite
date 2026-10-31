@@ -126,7 +126,7 @@ function cbSaveFood(PDO $pdo, int $storeId, array $input): int {
 function cbSetFoodAvailability(PDO $pdo, int $storeId, int $itemId, int $available): array {
     if (!$pdo->inTransaction()) throw new RuntimeException('Menu changes require a transaction.');
     if ($itemId <= 0 || !in_array($available, [0, 1], true)) throw new RuntimeException('Choose a valid food and availability.');
-    $stmt = $pdo->prepare('UPDATE menu_items SET is_available=? WHERE item_id=? AND store_id=? AND archived_at IS NULL RETURNING item_id,item_name,is_available');
+    $stmt = $pdo->prepare('UPDATE menu_items SET is_available=? WHERE item_id=? AND store_id=? AND archived_at IS NULL RETURNING item_id,item_name,is_available,' . cbFoodKeepsAvailabilitySql('menu_items') . ' AS keeps_availability');
     $stmt->execute([$available,$itemId,$storeId]);
     $food = $stmt->fetch();
     if (!$food) throw new RuntimeException('This food no longer exists or does not belong to your store.');

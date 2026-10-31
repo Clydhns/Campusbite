@@ -48,7 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $available = $_POST['available'] ?? null;
             if (!in_array($available, ['0', '1'], true)) throw new RuntimeException('Choose a valid availability.');
             $changedFood = cbSetFoodAvailability($pdo, (int) $store['store_id'], (int) $itemId, (int) $available);
-            $saveMessage = $changedFood['item_name'] . ' is now ' . ((int) $changedFood['is_available'] === 1 ? 'available for today.' : 'unavailable.');
+            $saveMessage = $changedFood['item_name'] . ' is now ' . ((int) $changedFood['is_available'] === 1
+                ? ((int) $changedFood['keeps_availability'] === 1 ? 'available until you switch it off.' : 'available for today.') : 'unavailable.');
         } elseif (($_POST['action'] ?? '') === 'delete_food') {
             $itemId = filter_var($_POST['item_id'] ?? null,FILTER_VALIDATE_INT);
             $photoChange['old'] = cbDeleteFood($pdo,(int) $store['store_id'],(int) $itemId);
@@ -63,7 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok'=>true, 'workspace'=>$_SESSION['user_id'] . '-' . $store['store_id'],
                 'item_id'=>(int) $changedFood['item_id'], 'available'=>(int) $changedFood['is_available'] === 1,
-                'available_until'=>strtotime($changedFood['availability_date'] . ' +1 day') * 1000, 'message'=>$saveMessage]);
+                'keeps_availability'=>(int) $changedFood['keeps_availability'] === 1,
+                'available_until'=>(int) $changedFood['keeps_availability'] === 1 ? null : strtotime($changedFood['availability_date'] . ' +1 day') * 1000, 'message'=>$saveMessage]);
             exit;
         }
         $_SESSION['store_flash'] = $saveMessage;
@@ -95,10 +97,10 @@ if ($toggleJson) {
     exit;
 }
 $categories = $pdo->query('SELECT * FROM categories ORDER BY category_name')->fetchAll();
-$stmt = $pdo->prepare('SELECT m.*,c.category_name,' . cbFoodAvailabilitySql('m') . ' AS available_today FROM menu_items m JOIN categories c ON c.category_id=m.category_id WHERE m.store_id=? AND m.archived_at IS NULL ORDER BY m.item_name');
+$stmt = $pdo->prepare('SELECT m.*,c.category_name,' . cbFoodAvailabilitySql('m') . ' AS available_today,' . cbFoodKeepsAvailabilitySql('m') . ' AS keeps_availability FROM menu_items m JOIN categories c ON c.category_id=m.category_id WHERE m.store_id=? AND m.archived_at IS NULL ORDER BY m.item_name');
 $stmt->execute([$store['store_id']]);
 $foods = $stmt->fetchAll();
-$edit = ['item_id'=>0,'item_name'=>'','description'=>'','price'=>'','category_id'=>'','is_available'=>0];
+$edit = ['item_id'=>0,'item_name'=>'','description'=>'','price'=>'','category_id'=>'','is_available'=>0,'keeps_availability'=>0];
 $editId = (int) ($_GET['edit'] ?? 0);
 if ($editId) {
     $found = false;
@@ -127,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <?php if ($success): ?><div class="success-message cb-staff-notice" data-staff-notice data-auto-dismiss role="status" aria-live="polite"><span><?= cbEscape($success) ?></span><button type="button" data-dismiss-notice aria-label="Dismiss success message">&times;</button></div><?php endif; ?>
 <div id="food-availability-notice" class="success-message cb-staff-notice" role="status" aria-live="polite" hidden><span></span><button type="button" aria-label="Dismiss availability message">&times;</button></div>
 <main class="container">
-<header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p>Set today's food and drink availability. All items reset to unavailable at midnight, Philippine time.</p></header>
+<header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p>Fresh food and juice reset at midnight Philippine time. Soft drinks and bottled water keep their availability until you change it.</p></header>
 <div class="cb-store-workspace">
 <section class="cb-store-panel"><h2>Store details</h2>
 <form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
@@ -167,15 +169,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <?php if ($currentPhoto): ?><label class="cb-store-check"><input type="checkbox" name="remove_photo"> Remove current photo (a new upload replaces it)</label><?php endif; ?>
 <div class="cb-store-fields"><div><label for="food-category">Category</label><select id="food-category" name="category_id" required><option value="">Choose category</option><?php foreach ($categories as $category): ?><option value="<?= (int) $category['category_id'] ?>" <?= (int) $edit['category_id'] === (int) $category['category_id'] ? 'selected' : '' ?>><?= cbEscape($category['category_name']) ?></option><?php endforeach; ?></select></div>
 <div><label for="food-price">Price (PHP)</label><input id="food-price" type="number" name="price" min="0.01" max="999999.99" step="0.01" required value="<?= cbEscape($edit['price']) ?>"></div></div>
-<label class="cb-food-switch-label" for="food-availability"><input id="food-availability" type="checkbox" name="is_available" value="1" role="switch" aria-label="Food available for ordering" aria-describedby="food-availability-help" <?= $edit['is_available'] ? 'checked' : '' ?>><span class="cb-switch-track" aria-hidden="true"></span><span class="cb-switch-state"><span class="cb-switch-on">Available</span><span class="cb-switch-off">Unavailable</span></span></label>
-<p id="food-availability-help" class="cb-store-help">Available for today only. At midnight Philippine time, food and drinks become unavailable until you switch them on again. No serving counts needed.</p>
+<label class="cb-food-switch-label" for="food-availability"><input id="food-availability" type="checkbox" name="is_available" value="1" role="switch" data-availability-reset="<?= $edit['keeps_availability'] ? 'never' : 'daily' ?>" aria-label="Food available for ordering" aria-describedby="food-availability-help" <?= $edit['is_available'] ? 'checked' : '' ?>><span class="cb-switch-track" aria-hidden="true"></span><span class="cb-switch-state"><span class="cb-switch-on">Available</span><span class="cb-switch-off">Unavailable</span></span></label>
+<p id="food-availability-help" class="cb-store-help">Fresh food and cups of juice reset to unavailable at midnight Philippine time. Soft drinks and bottled water stay available across days unless you switch them off. Categorize drinks under Beverages or a matching drinks category.</p>
 <div class="cb-store-actions"><button class="btn" type="submit"><?= $edit['item_id'] ? 'Save food' : 'Add food' ?></button></div>
 </form></section></div>
-<section class="cb-store-section"><h2>Your menu</h2><p>Switch on the food and drinks you are selling today. Availability resets at midnight Philippine time. Existing orders are not cancelled.</p><div class="cb-store-grid">
+<section class="cb-store-section"><h2>Your menu</h2><p>Daily-reset items need to be switched on each day. Soft drinks and bottled water do not reset. Existing orders are not cancelled.</p><div class="cb-store-grid">
 <?php foreach ($foods as $food): ?><article class="cb-store-panel">
 <?php if ($photo = cbFoodPhotoUrl($food['image_path'])): ?><img class="cb-food-photo" src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($food['item_name']) ?>" loading="lazy" width="640" height="400"><?php endif; ?>
 <span class="cb-store-kicker"><?= cbEscape($food['category_name']) ?></span><h3><?= cbEscape($food['item_name']) ?></h3><p><?= cbEscape($food['description']) ?></p><strong>PHP <?= number_format((float) $food['price'],2) ?></strong>
-<form method="POST" action="staff_menu.php" data-food-availability data-item-id="<?= (int) $food['item_id'] ?>">
+<p class="cb-store-help"><?= $food['keeps_availability'] ? 'No daily reset' : 'Resets at midnight (Philippine time)' ?></p>
+<form method="POST" action="staff_menu.php" data-food-availability data-availability-reset="<?= $food['keeps_availability'] ? 'never' : 'daily' ?>" data-item-id="<?= (int) $food['item_id'] ?>">
 <input type="hidden" name="action" value="set_food_availability"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $food['item_id'] ?>"><input type="hidden" name="available" value="<?= $food['available_today'] ? '0' : '1' ?>">
 <button type="submit" class="cb-food-switch" role="switch" aria-checked="<?= $food['available_today'] ? 'true' : 'false' ?>" aria-label="Availability for <?= cbEscape($food['item_name']) ?>"><span class="cb-switch-track" aria-hidden="true"></span><span data-availability-label><?= $food['available_today'] ? 'Available' : 'Unavailable' ?></span></button>
 </form>

@@ -21,13 +21,14 @@
         if (!availableUntil || Date.now() < availableUntil) return;
         availableUntil = 0;
         document.querySelectorAll('[data-food-availability]').forEach(form => {
+            if (form.dataset.availabilityReset === 'never') return;
             form.querySelector('button').setAttribute('aria-checked', 'false');
             form.querySelector('[data-availability-label]').textContent = 'Unavailable';
             form.querySelector('[name="available"]').value = '1';
         });
         const editor = document.getElementById('food-availability');
-        if (editor) editor.checked = false;
-        showNotice('A new canteen day has started. Switch on the food and drinks you are selling today.');
+        if (editor && editor.dataset.availabilityReset !== 'never') editor.checked = false;
+        showNotice('A new canteen day has started. Switch on today\'s fresh food and juice. Soft drinks and bottled water keep their availability.');
     }
     function scheduleExpiry() {
         clearTimeout(expiryTimer);
@@ -59,23 +60,28 @@
             }
             const result = await response.json();
             if (!response.ok || !result.ok) throw new Error(result.message || 'Unable to change availability.');
+            const keepsAvailability = result.keeps_availability === true;
             if (result.workspace !== workspace || result.item_id !== Number(form.dataset.itemId)
                 || typeof result.available !== 'boolean' || result.available !== requested
-                || !Number.isFinite(result.available_until) || result.available_until <= 0
-                || (availableUntil && result.available_until < availableUntil)) {
+                || typeof result.keeps_availability !== 'boolean'
+                || (keepsAvailability ? result.available_until !== null
+                    : (!Number.isFinite(result.available_until) || result.available_until <= 0
+                        || (availableUntil && result.available_until < availableUntil)))) {
                 throw new Error('The menu changed. Refresh the page before trying again.');
             }
-            if (availableUntil && availableUntil !== result.available_until) {
+            if (!keepsAvailability && availableUntil && availableUntil !== result.available_until) {
                 availableUntil = 1;
                 expireAvailability();
             }
-            availableUntil = result.available_until;
+            if (!keepsAvailability) availableUntil = result.available_until;
+            form.dataset.availabilityReset = keepsAvailability ? 'never' : 'daily';
             button.setAttribute('aria-checked', String(result.available));
             form.querySelector('[data-availability-label]').textContent = result.available ? 'Available' : 'Unavailable';
             target.value = result.available ? '0' : '1';
             const editor = document.querySelector('[name="action"][value="save_food"]')?.form;
             if (editor?.querySelector('[name="item_id"]').value === String(result.item_id)) {
                 editor.querySelector('[name="is_available"]').checked = result.available;
+                editor.querySelector('[name="is_available"]').dataset.availabilityReset = keepsAvailability ? 'never' : 'daily';
             }
             showNotice(result.message);
             expireAvailability();

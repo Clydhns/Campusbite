@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../food-availability.js'), 'utf8');
 
-function fixture({ result, ok = true, pending = false, redirected = false } = {}) {
+function fixture({ result, ok = true, pending = false, redirected = false, keeps = false } = {}) {
     const state = { calls: 0, attributes: { 'aria-checked': 'true' }, timers: new Map(), events: {}, now: Date.now() };
     const until = state.now + 3600000;
     const input = { value: '0' }, label = { textContent: 'Available' }, text = { textContent: '' };
@@ -13,7 +13,7 @@ function fixture({ result, ok = true, pending = false, redirected = false } = {}
     const notice = { hidden: true, classList: { toggle() {} }, querySelector(selector) {
         return selector === 'span' ? text : { addEventListener(_name, fn) { state.dismiss = fn; } };
     } };
-    const form = { dataset: { itemId: '10' }, matches: () => true, getAttribute: () => 'staff_menu.php', querySelector(selector) {
+    const form = { dataset: { itemId: '10', availabilityReset: keeps ? 'never' : 'daily' }, matches: () => true, getAttribute: () => 'staff_menu.php', querySelector(selector) {
         return selector === 'button' ? button : selector === '[name="available"]' ? input : label;
     } };
     const document = { body: { dataset: { staffWorkspace: '2-1', availabilityUntil: String(until) } },
@@ -22,7 +22,8 @@ function fixture({ result, ok = true, pending = false, redirected = false } = {}
         addEventListener(name, fn) { state.events[name] = fn; } };
     let timerId = 0;
     const response = { ok, redirected, headers: { get: () => 'application/json' }, json: async () => result || {
-        ok: true, workspace: '2-1', item_id: 10, available: false, available_until: until, message: 'Meal is now unavailable.'
+        ok: true, workspace: '2-1', item_id: 10, available: false, keeps_availability: keeps,
+        available_until: keeps ? null : until, message: 'Meal is now unavailable.'
     } };
     vm.runInNewContext(source, { document, Date: { now: () => state.now },
         window: { addEventListener(name, fn) { state.events['window-'+name] = fn; } },
@@ -109,7 +110,7 @@ test('returning to an overnight tab resets expired availability before another c
 });
 
 test('a request completed after midnight cannot leave yesterday\'s availability on', async () => {
-    const result = { ok: true, workspace: '2-1', item_id: 10, available: true, message: 'Available for today.' };
+    const result = { ok: true, workspace: '2-1', item_id: 10, available: true, keeps_availability: false, message: 'Available for today.' };
     const page = fixture({ pending: true, result });
     result.available_until = page.until;
     page.input.value = '1';
@@ -118,4 +119,21 @@ test('a request completed after midnight cannot leave yesterday\'s availability 
     page.resolve(); await request;
     assert.equal(page.attributes['aria-checked'], 'false');
     assert.equal(page.input.value, '1');
+});
+
+test('soft drinks and water remain available when the daily timer expires', () => {
+    const page = fixture({ keeps: true }); page.now = page.until + 1;
+    page.events['window-focus']();
+    assert.equal(page.attributes['aria-checked'], 'true');
+    assert.equal(page.label.textContent, 'Available');
+    assert.equal(page.input.value, '0');
+});
+
+test('a no-reset item can still be switched off and stays off overnight', async () => {
+    const page = fixture({ keeps: true }); await page.submit();
+    assert.equal(page.attributes['aria-checked'], 'false');
+    assert.equal(page.input.value, '1');
+    page.now = page.until + 1; page.events['window-focus']();
+    assert.equal(page.attributes['aria-checked'], 'false');
+    assert.equal(page.label.textContent, 'Unavailable');
 });
