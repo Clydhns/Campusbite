@@ -71,6 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear
 |--------------------------------------------------------------------------
 */
 
+$cartCatalog = [];
+$cartCatalogError = null;
+try {
+    $cartCatalog = cbCartCatalog($pdo, $_SESSION['cart']);
+} catch (PDOException $exception) {
+    $cartCatalogError = $exception;
+    error_log('Cart catalog unavailable: ' . $exception->getMessage());
+}
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $action = $_POST["action"] ?? "";
@@ -143,27 +152,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             try {
 
-                $stmt = $pdo->prepare("
-                    SELECT
-                        mi.item_id,
-                        mi.item_name,
-                        mi.price,
-                        " . cbFoodAvailabilitySql('mi') . " AS general_available,
-                        s.is_open,
-                        owner.is_active AS owner_active,
-                        owner.role_id AS owner_role
-                    FROM menu_items mi
-                    JOIN stores s ON s.store_id=mi.store_id
-                    JOIN users owner ON owner.user_id=s.staff_user_id
-
-                    WHERE mi.item_id = ? AND mi.archived_at IS NULL
-
-                    LIMIT 1
-                ");
-
-                $stmt->execute([$itemId]);
-
-                $item = $stmt->fetch();
+                if ($cartCatalogError) throw $cartCatalogError;
+                $item = $cartCatalog[$itemId] ?? null;
 
                 if (!$item) {
 
@@ -229,35 +219,8 @@ foreach ($_SESSION["cart"] as $itemId => &$cartItem) {
 
     try {
 
-        $stmt = $pdo->prepare("
-            SELECT
-                mi.item_id,
-                mi.item_name,
-                mi.description,
-                mi.image_path,
-                mi.price,
-                " . cbFoodAvailabilitySql('mi') . " AS general_available,
-                c.category_name,
-                s.is_open,
-                owner.is_active AS owner_active,
-                owner.role_id AS owner_role
-            FROM menu_items mi
-            JOIN stores s ON s.store_id=mi.store_id
-            JOIN users owner ON owner.user_id=s.staff_user_id
-
-            INNER JOIN categories c
-                ON mi.category_id = c.category_id
-
-            WHERE mi.item_id = ? AND mi.archived_at IS NULL
-
-            LIMIT 1
-        ");
-
-        $stmt->execute([
-            (int) $itemId
-        ]);
-
-        $item = $stmt->fetch();
+        if ($cartCatalogError) throw $cartCatalogError;
+        $item = $cartCatalog[(int) $itemId] ?? null;
 
         if (!$item) {
 
@@ -366,6 +329,7 @@ foreach ($_SESSION["cart"] as $cartItem) {
 }
 
 $total = $subtotal;
+session_write_close();
 $cartGroups = [];
 try { $cartGroups = cbCartGroups($pdo, $_SESSION['cart']); }
 catch (RuntimeException $exception) {

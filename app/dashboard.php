@@ -895,7 +895,7 @@ function getStatusClass($status)
     </style>
 
     <link rel="stylesheet" href="assets/order-tracking/tracking.css?v=1">
-    <script src="assets/order-tracking/tracking.js?v=1" defer></script>
+    <?php if ($recentOrders): ?><script src="assets/order-tracking/tracking.js?v=1" defer></script><?php endif; ?>
     <link rel="stylesheet" href="dashboard-commerce.css?v=1">
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="student-pages.css?v=1">

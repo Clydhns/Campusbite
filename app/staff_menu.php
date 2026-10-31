@@ -96,6 +96,7 @@ if ($toggleJson) {
     echo json_encode(['ok'=>false, 'message'=>$error]);
     exit;
 }
+session_write_close();
 $categories = $pdo->query('SELECT * FROM categories ORDER BY category_name')->fetchAll();
 $stmt = $pdo->prepare('SELECT m.*,c.category_name,' . cbFoodAvailabilitySql('m') . ' AS available_today,' . cbFoodKeepsAvailabilitySql('m') . ' AS keeps_availability FROM menu_items m JOIN categories c ON c.category_id=m.category_id WHERE m.store_id=? AND m.archived_at IS NULL ORDER BY m.item_name');
 $stmt->execute([$store['store_id']]);

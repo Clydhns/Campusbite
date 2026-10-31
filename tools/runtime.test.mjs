@@ -78,6 +78,13 @@ try {
     'Batched cart ownership accepts same-store items and rejects mixed, missing and closed-store items under transaction locks');
   check(reuse.multi_cart_authority,
     'Cart grouping ignores forged session store labels, rejects malformed selectors and removes only selected item keys');
+  check(reuse.batch_catalog_valid && reuse.query_counts.cart_items===20 && reuse.query_counts.legacy_cart_queries===20
+    && reuse.query_counts.batch_cart_queries===1 && reuse.query_counts.empty_cart_queries===0,
+    'A 20-item cart validates current prices and availability in one catalog query instead of 20; empty carts use none');
+  check(reuse.store_lookup_valid && reuse.query_counts.existing_store_queries===1,
+    'An existing staff store loads in one query while inactive owners are still rejected');
+  check(reuse.admin_stats_valid && reuse.query_counts.admin_stats_queries===1,
+    'Admin statistics use one query while retaining correct empty, current-day and historical totals');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
     APP_SESSION_SECRET:randomBytes(48).toString('hex'),CAMPUSBITE_LOCAL_TEST:'1'}});
@@ -107,6 +114,8 @@ try {
     const page=await student(route); assert.equal(page.status,200,route); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Student dashboard, menu, empty cart, orders and profile render through PHP/PostgreSQL');
+  check(!(await student('dashboard.php')).html.includes('src="assets/order-tracking/tracking.js'),
+    'An empty dashboard skips the 255 KB order-tracking JavaScript bundle');
   const dashboardCard=(html,id)=>html.match(new RegExp(`<a\\b[^>]*data-food-id="${id}"[^>]*>[\\s\\S]*?<\\/a>`))?.[0] || '';
   const heroSection=html=>html.match(/<section class="cb-hero cb-food-hero"[\s\S]*?<\/section>/)?.[0] || '';
   const fixturePhoto='uploads/foods/'+'a'.repeat(32)+'.png';
@@ -292,6 +301,8 @@ try {
   check(Number(otherOrder.store_id)===2 && Number(otherOrder.total_amount)===60 && otherOrder.method==='GCash',
     'An already-open second-store checkout remains valid and creates its own order, total and payment');
   const orders=await student('orders.php');
+  check((await student('dashboard.php')).html.includes('src="assets/order-tracking/tracking.js'),
+    'Order tracking still loads when the signed-in student has orders to display');
   const cancelled=await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Fixture cancellation'});
   assert.equal(cancelled.status,200);
   assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[order.order_id])).rows[0].status_id),5);

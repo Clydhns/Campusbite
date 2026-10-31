@@ -27,7 +27,6 @@ if (empty($_SESSION["menu_csrf"])) {
     $_SESSION["menu_csrf"] = bin2hex(random_bytes(32));
 }
 
-$stores = cbVisibleStores($pdo);
 $selectedStore = max(0, (int) ($_GET["store"] ?? 0));
 $message = "";
 $messageType = "";
@@ -114,6 +113,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
 }
+
+// All cart/CSRF writes are complete; don't block another navigation while reading menus.
+session_write_close();
+$stores = cbVisibleStores($pdo);
 
 // Load categories and food
 $categories = [];

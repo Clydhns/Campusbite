@@ -249,6 +249,10 @@ if (
 // GET USER ORDERS
 // =========================================================
 
+$recent_order_id = isset($_SESSION['recent_order_id']) ? (int) $_SESSION['recent_order_id'] : 0;
+unset($_SESSION['recent_order_id']);
+session_write_close();
+
 $sql = "
     SELECT
         o.order_id,
@@ -281,10 +285,6 @@ $sql = "
 ";
 
 $stmt = $pdo->prepare($sql);
-
-$recent_order_id = isset($_SESSION["recent_order_id"])
-    ? (int) $_SESSION["recent_order_id"]
-    : 0;
 
 $stmt->execute([
     "student_id" => $_SESSION["user_id"]
@@ -348,8 +348,6 @@ if (!empty($orders)) {
         $order_items[$order_id][] = $item;
     }
 }
-
-unset($_SESSION["recent_order_id"]);
 
 
 // =========================================================

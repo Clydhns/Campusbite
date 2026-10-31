@@ -346,6 +346,8 @@ if (
 // DASHBOARD COUNTS
 // =========================================================
 
+session_write_close();
+
 $count_sql = "
     SELECT
 
@@ -487,6 +489,7 @@ if (!empty($orders)) {
 
         JOIN orders scoped_order ON scoped_order.order_id=oi.order_id
         WHERE scoped_order.store_id=:store_id
+          AND oi.order_id IN (" . implode(',', array_map(static fn($order) => (int) $order['order_id'], $orders)) . ")
         ORDER BY
             oi.order_item_id ASC
     ";
@@ -1420,7 +1423,7 @@ if (!empty($orders)) {
     </style>
 
     <link rel="stylesheet" href="assets/order-tracking/tracking.css?v=1">
-    <script src="assets/order-tracking/tracking.js?v=<?= (int) filemtime(__DIR__ . '/assets/order-tracking/tracking.js') ?>" defer></script>
+    <?php if ($orders): ?><script src="assets/order-tracking/tracking.js?v=<?= (int) filemtime(__DIR__ . '/assets/order-tracking/tracking.js') ?>" defer></script><?php endif; ?>
     <script src="staff-orders.js?v=<?= (int) filemtime(__DIR__ . '/staff-orders.js') ?>" defer></script>
     <link rel="stylesheet" href="staff-orders.css?v=<?= (int) filemtime(__DIR__ . '/staff-orders.css') ?>">
     <link rel="stylesheet" href="payment-confirmation.css?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.css') ?>">

@@ -7,12 +7,19 @@ function cbEscape($value): string {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 function cbEnsureStore(PDO $pdo, int $staffId): array {
-    $stmt = $pdo->prepare("SELECT LEFT(CONCAT(first_name,' ',last_name,' Kitchen'),100) AS default_store_name FROM users WHERE user_id=? AND role_id=2 AND is_active=1");
+    $stmt = $pdo->prepare("SELECT s.*,LEFT(CONCAT(u.first_name,' ',u.last_name,' Kitchen'),100) AS default_store_name
+        FROM users u LEFT JOIN stores s ON s.staff_user_id=u.user_id WHERE u.user_id=? AND u.role_id=2 AND u.is_active=1");
     $stmt->execute([$staffId]);
     $staff = $stmt->fetch();
     if (!$staff) throw new RuntimeException('An active staff account is required.');
-    $stmt = $pdo->prepare('INSERT INTO stores (staff_user_id,store_name) VALUES (?,?) ON CONFLICT (staff_user_id) DO NOTHING');
+    if (!empty($staff['store_id'])) {
+        unset($staff['default_store_name']);
+        return $staff;
+    }
+    $stmt = $pdo->prepare('INSERT INTO stores (staff_user_id,store_name) VALUES (?,?) ON CONFLICT (staff_user_id) DO NOTHING RETURNING *');
     $stmt->execute([$staffId, $staff['default_store_name']]);
+    if ($created = $stmt->fetch()) return $created;
+    // Another request may have created this staff member's store concurrently.
     $stmt = $pdo->prepare('SELECT * FROM stores WHERE staff_user_id=?');
     $stmt->execute([$staffId]);
     return $stmt->fetch();

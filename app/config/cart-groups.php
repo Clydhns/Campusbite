@@ -1,6 +1,21 @@
 <?php
 require_once __DIR__ . '/stores.php';
 
+function cbCartCatalog(PDO $pdo, array $cart): array {
+    if (!$cart) return [];
+    $ids = array_values(array_unique(array_map('intval', array_keys($cart))));
+    $stmt = $pdo->prepare('SELECT mi.item_id,mi.item_name,mi.description,mi.image_path,mi.price,c.category_name,
+        ' . cbFoodAvailabilitySql('mi') . ' AS general_available,s.is_open,
+        owner.is_active AS owner_active,owner.role_id AS owner_role
+        FROM menu_items mi JOIN categories c ON c.category_id=mi.category_id
+        JOIN stores s ON s.store_id=mi.store_id JOIN users owner ON owner.user_id=s.staff_user_id
+        WHERE mi.archived_at IS NULL AND mi.item_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')');
+    $stmt->execute($ids);
+    $catalog = [];
+    foreach ($stmt->fetchAll() as $item) $catalog[(int) $item['item_id']] = $item;
+    return $catalog;
+}
+
 // Resolve store ownership from current database rows, never from session store labels.
 function cbCartGroups(PDO $pdo, array $cart): array {
     if (!$cart) return [];

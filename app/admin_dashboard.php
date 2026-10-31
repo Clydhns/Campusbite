@@ -3,7 +3,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once "config/connection.php";
-require_once __DIR__ . '/config/food-availability.php';
+require_once __DIR__ . '/config/admin-stats.php';
 
 // Only Administrator can access this page
 if (
@@ -22,106 +22,22 @@ $adminName = ($_SESSION["first_name"] ?? "Admin") . " " . ($_SESSION["last_name"
 // --------------------------------------------------
 
 try {
-    // Total users
-    $stmt = $pdo->query("SELECT COUNT(*) FROM users");
-    $totalUsers = (int) $stmt->fetchColumn();
-
-    // Active users
-    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE is_active = 1");
-    $activeUsers = (int) $stmt->fetchColumn();
-
-    // Total students
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM users
-        WHERE role_id = 3
-    ");
-    $totalStudents = (int) $stmt->fetchColumn();
-
-    // Total staff
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM users
-        WHERE role_id = 2
-    ");
-    $totalStaff = (int) $stmt->fetchColumn();
-
-    // Total menu items
-    $stmt = $pdo->query("SELECT COUNT(*) FROM menu_items");
-    $totalMenuItems = (int) $stmt->fetchColumn();
-
-    // Available menu items
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM menu_items m
-        WHERE m.archived_at IS NULL AND (" . cbFoodAvailabilitySql('m') . ")=1
-    ");
-    $availableMenuItems = (int) $stmt->fetchColumn();
-
-    // Pending orders
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE status_id = 1
-    ");
-    $pendingOrders = (int) $stmt->fetchColumn();
-
-    // Preparing orders
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE status_id = 2
-    ");
-    $preparingOrders = (int) $stmt->fetchColumn();
-
-    // Ready for pickup
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE status_id = 3
-    ");
-    $readyOrders = (int) $stmt->fetchColumn();
-
-    // Completed orders
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE status_id = 4
-    ");
-    $completedOrders = (int) $stmt->fetchColumn();
-
-    // Cancelled orders
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE status_id = 5
-    ");
-    $cancelledOrders = (int) $stmt->fetchColumn();
-
-    // Total sales from completed orders
-    $stmt = $pdo->query("
-        SELECT COALESCE(SUM(total_amount), 0)
-        FROM orders
-        WHERE status_id = 4
-    ");
-    $totalSales = (float) $stmt->fetchColumn();
-
-    // Today's sales
-    $stmt = $pdo->query("
-        SELECT COALESCE(SUM(total_amount), 0)
-        FROM orders
-        WHERE status_id = 4
-        AND DATE(order_datetime) = CURRENT_DATE
-    ");
-    $todaySales = (float) $stmt->fetchColumn();
-
-    // Today's orders
-    $stmt = $pdo->query("
-        SELECT COUNT(*)
-        FROM orders
-        WHERE DATE(order_datetime) = CURRENT_DATE
-    ");
-    $todayOrders = (int) $stmt->fetchColumn();
+    session_write_close();
+    $stats = cbAdminStats($pdo);
+    $totalUsers = (int) $stats['total_users'];
+    $activeUsers = (int) $stats['active_users'];
+    $totalStudents = (int) $stats['total_students'];
+    $totalStaff = (int) $stats['total_staff'];
+    $totalMenuItems = (int) $stats['total_menu_items'];
+    $availableMenuItems = (int) $stats['available_menu_items'];
+    $pendingOrders = (int) $stats['pending_orders'];
+    $preparingOrders = (int) $stats['preparing_orders'];
+    $readyOrders = (int) $stats['ready_orders'];
+    $completedOrders = (int) $stats['completed_orders'];
+    $cancelledOrders = (int) $stats['cancelled_orders'];
+    $totalSales = (float) $stats['total_sales'];
+    $todaySales = (float) $stats['today_sales'];
+    $todayOrders = (int) $stats['today_orders'];
 
 } catch (PDOException $e) {
     die("Dashboard error: " . htmlspecialchars($e->getMessage()));
@@ -1021,7 +937,7 @@ function paymentClass($status)
 
     </style>
     <link rel="stylesheet" href="assets/order-tracking/tracking.css?v=1">
-    <script src="assets/order-tracking/tracking.js?v=1" defer></script>
+    <?php if ($recentOrders): ?><script src="assets/order-tracking/tracking.js?v=1" defer></script><?php endif; ?>
     <link rel="stylesheet" href="dashboard-commerce.css?v=1">
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="admin-navbar.css?v=<?= (int) filemtime(__DIR__ . '/admin-navbar.css') ?>">

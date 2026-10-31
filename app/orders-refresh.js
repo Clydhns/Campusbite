@@ -10,6 +10,7 @@
     let timer;
     let controller;
     let stopped = false;
+    let leaving = false;
     let failures = 0;
 
     function filter() {
@@ -26,10 +27,10 @@
 
     function schedule() {
         clearTimeout(timer);
-        if (!stopped && !document.hidden) timer = setTimeout(refresh, Math.min(30000, 4000 * (failures + 1)));
+        if (!stopped && !leaving && !document.hidden) timer = setTimeout(refresh, Math.min(30000, 4000 * (failures + 1)));
     }
     async function refresh() {
-        if (stopped || document.hidden || controller) return;
+        if (stopped || leaving || document.hidden || controller) return;
         const modal = document.getElementById('cancelConfirmation');
         const editingReceipt = () => list.querySelector('.gcash-receipt-form[data-dirty="true"], .gcash-receipt-form[data-saving="true"], .gcash-receipt-form[data-confirming="true"]');
         if (list.contains(document.activeElement) || editingReceipt() || (modal && !modal.hidden)) { schedule(); return; }
@@ -67,7 +68,7 @@
             status.dataset.state = 'connected';
             failures = 0;
         } catch (error) {
-            if (!document.hidden) {
+            if (!leaving && !document.hidden) {
                 failures++;
                 status.dataset.state = 'error';
                 status.textContent = 'Updates paused. Retrying automatically.';
@@ -84,8 +85,23 @@
         else { if (!controller) refresh(); }
     });
     window.addEventListener('focus', () => { clearTimeout(timer); refresh(); });
-    window.addEventListener('pagehide', () => { clearTimeout(timer); controller?.abort(); });
-    document.addEventListener('submit', event => { if (event.target.matches('.cancel-form')) { stopped=true; clearTimeout(timer); controller?.abort(); } });
+    function pauseForNavigation() {
+        leaving = true;
+        clearTimeout(timer);
+        controller?.abort();
+    }
+    document.addEventListener('click', event => {
+        if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const link = event.target.closest?.('.cb-site-navbar a[href]');
+        if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+        const target = new URL(link.href, window.location.href);
+        if (target.origin === window.location.origin && (target.pathname !== window.location.pathname || target.search !== window.location.search)) pauseForNavigation();
+    });
+    window.addEventListener('pagehide', pauseForNavigation);
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) { leaving = false; stopped = false; schedule(); }
+    });
+    document.addEventListener('submit', event => { if (!event.defaultPrevented && event.target.matches('.cancel-form')) { stopped=true; clearTimeout(timer); controller?.abort(); } });
     filter();
     schedule();
 })();
