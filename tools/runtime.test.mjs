@@ -813,7 +813,14 @@ try {
   const passwordForm=securityPage.html.match(/<form\b[^>]*class="cb-store-password-form"[\s\S]*?<\/form>/)?.[0] || '';
   check(passwordForm.includes('value="change_password"') && passwordForm.includes('name="current_password"')
     && passwordForm.includes('name="new_password"') && passwordForm.includes('name="confirm_password"'),
-    'Account details offers a separate current/new/confirm password form beneath Personal details');
+    'Account details offers a separate current/new/confirm password form');
+  const personalDetailsCard=securityPage.html.match(/<section\b[^>]*aria-labelledby="profile-details-title"[\s\S]*?<\/section>/)?.[0] || '';
+  check(personalDetailsCard.includes('id="change-password"') && personalDetailsCard.includes(passwordForm)
+    && !personalDetailsCard.includes('profile-card cb-store-password'),
+    'Change password is inside the Personal details card instead of a separate card');
+  const accountForms=personalDetailsCard.match(/<form\b[\s\S]*?<\/form>/g) || [];
+  check(accountForms.length===2 && accountForms.every(form=>(form.match(/<form\b/g) || []).length===1),
+    'The shared Personal details card keeps two independent forms with no invalid nested forms');
   const originalStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash;
   const otherStaffHash=(await db.query('SELECT password_hash FROM users WHERE user_id=3')).rows[0].password_hash;
   const newStaffPassword='New fixture '+randomBytes(18).toString('hex');

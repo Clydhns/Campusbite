@@ -147,7 +147,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
             </dl>
             <p class="profile-note">Your account ID, role, and access permissions cannot be changed here.</p>
         </aside>
-        <div class="staff-account-column">
         <section class="profile-card" aria-labelledby="profile-details-title">
             <h2 id="profile-details-title">Personal details</h2>
             <p class="profile-note">Your current password confirms personal-information changes. Use Change password below to update your password.</p>
@@ -162,8 +161,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
                 <div class="profile-password"><label for="current-password">Current password</label><input id="current-password" type="password" name="current_password" autocomplete="current-password" required></div>
                 <div class="profile-actions"><button class="btn" type="submit">Save changes</button><a class="btn btn-secondary" href="staff_menu.php?view=settings">Back to Store Profile</a></div>
             </form>
-        </section>
-        <details class="profile-card cb-store-password" id="change-password" <?= $passwordError !== '' || $passwordSuccess !== '' ? 'open' : '' ?>>
+        <details class="cb-store-password" id="change-password" <?= $passwordError !== '' || $passwordSuccess !== '' ? 'open' : '' ?>>
             <summary>Change password</summary>
             <p class="profile-note">Change the password for this account. Other sessions will be signed out.</p>
             <?php if ($passwordError !== ''): ?><p class="error-message" role="alert"><?= profileEscape($passwordError) ?></p><?php endif; ?>
@@ -177,7 +175,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
                 <div class="profile-actions"><button type="submit" class="btn">Change password</button></div>
             </form>
         </details>
-        </div>
+        </section>
     </div>
 </main>
 </body>
