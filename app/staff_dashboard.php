@@ -1492,7 +1492,7 @@ campusBiteTracking($pdo, $orders, true);
 
         <div class="cb-store-payment-summary">
             <span><strong>Accepted payments:</strong> <?= empty($store['gcash_number']) ? 'Cash' : 'Cash and GCash' ?></span>
-            <a href="staff_menu.php#store-payments"><?= empty($store['gcash_number']) ? 'Set up GCash' : 'Manage payment methods' ?></a>
+            <a href="staff_menu.php?view=settings#store-payments"><?= empty($store['gcash_number']) ? 'Set up GCash' : 'Manage payment methods' ?></a>
         </div>
 
     </div>

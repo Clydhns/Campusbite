@@ -692,10 +692,27 @@ try {
   const drinkPlaced=await drinkShopper('checkout.php',{csrf_token:token(drinkCheckout.html),store_id:'1',action:'place_order',payment_method:'Cash',remarks:'No-reset drink fixture'});
   check(drinkPlaced.status===302 && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[coke.item_id])).rows.length===0,
     'Soft drinks pass menu, cart and checkout validation without a daily availability record');
-  const hoursPage=await staff('staff_menu.php');
-  check(hoursPage.html.includes('class="cb-store-menu-column"')
-    && /<div class="cb-store-menu-column">[\s\S]*value="save_food"[\s\S]*<h2>Your menu<\/h2>[\s\S]*data-food-availability/.test(hoursPage.html),
-    'Food editor and menu inventory share the content-sized right column instead of stretching the editor to store-settings height');
+  const menuWorkspace=await staff('staff_menu.php');
+  check(menuWorkspace.html.includes('aria-label="Store workspace"')
+    && /<a href="staff_menu.php" aria-current="page"/.test(menuWorkspace.html)
+    && /<details\b[^>]*id="food-editor"\s*>/.test(menuWorkspace.html)
+    && menuWorkspace.html.includes('<h2>Your menu</h2>')
+    && !menuWorkspace.html.includes('name="opens_at"') && !menuWorkspace.html.includes('cb-store-menu-column'),
+    'Default staff workspace prioritizes a full-width menu and collapsed food editor, separate from store settings');
+  const editingFood=await staff('staff_menu.php?edit=1');
+  const addingFood=await staff('staff_menu.php?add=1');
+  check(/<details\b[^>]*id="food-editor"[^>]*\bopen/.test(editingFood.html)
+    && /<details\b[^>]*id="food-editor"[^>]*\bopen/.test(addingFood.html),
+    'Editing a food or following the Add Food URL opens the native editor without JavaScript');
+  const invalidFood=await staff('staff_menu.php',{action:'save_food',csrf_token:token(menuWorkspace.html),item_id:'0',item_name:'Invalid fixture',description:'',category_id:'1',price:'0'});
+  check(invalidFood.html.includes('Enter a positive price')
+    && /<details\b[^>]*id="food-editor"[^>]*\bopen/.test(invalidFood.html)
+    && invalidFood.html.includes('value="Invalid fixture"'),
+    'Food validation errors keep the editor open and retain entered values');
+  const hoursPage=await staff('staff_menu.php?view=settings');
+  check(/href="staff_menu.php\?view=settings" aria-current="page"/.test(hoursPage.html)
+    && !hoursPage.html.includes('<h2>Your menu</h2>') && !hoursPage.html.includes('value="save_food"'),
+    'Store settings has its own focused view without menu cards or the food form');
   check(hoursPage.html.includes('name="opens_at" type="time"') && hoursPage.html.includes('name="closes_at" type="time"'),
     'Staff can edit their daily opening and closing times with Philippine-time guidance');
   const previousHours=(await db.query('SELECT opens_at,closes_at FROM stores WHERE store_id=1')).rows[0];
@@ -714,7 +731,9 @@ try {
   const beforeOrders=Number((await db.query('SELECT COUNT(*) AS n FROM orders')).rows[0].n);
   // Set a valid one-hour window safely away from now, without changing the host clock.
   const closedHours=(await db.query("SELECT to_char(((clock_timestamp() AT TIME ZONE 'Asia/Manila')+INTERVAL '4 hours')::time,'HH24:MI') AS opens,to_char(((clock_timestamp() AT TIME ZONE 'Asia/Manila')+INTERVAL '5 hours')::time,'HH24:MI') AS closes")).rows[0];
-  await staff('staff_menu.php',{...settings,opens_at:closedHours.opens,closes_at:closedHours.closes});
+  const savedSettings=await staff('staff_menu.php',{...settings,opens_at:closedHours.opens,closes_at:closedHours.closes});
+  check(savedSettings.status===302 && savedSettings.location==='staff_menu.php?view=settings',
+    'Saving store details returns staff to settings rather than unexpectedly switching to the menu');
   const closedStore=(await db.query('SELECT is_open,opens_at,closes_at FROM stores WHERE store_id=1')).rows[0];
   check(Number(closedStore.is_open)===1 && closedStore.opens_at.startsWith(closedHours.opens)
     && closedStore.closes_at.startsWith(closedHours.closes), 'Owning staff saves custom store hours independently of the manual open switch');

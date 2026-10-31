@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $_SESSION['store_flash'] = $saveMessage;
-        header('Location: staff_menu.php');
+        header('Location: staff_menu.php' . (($_POST['action'] ?? '') === 'save_store' ? '?view=settings' : ''));
         exit;
     } catch (PDOException $exception) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -119,6 +119,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $acceptGcash = isset($_POST['accept_gcash']);
     $gcashNumber = is_string($_POST['gcash_number'] ?? null) ? $_POST['gcash_number'] : '';
 }
+$settingsView = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? ($_POST['action'] ?? '') === 'save_store'
+    : (($_GET['view'] ?? '') === 'settings' && !$editId && ($_GET['add'] ?? '') !== '1');
+$editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
+    || ($error !== '' && ($_POST['action'] ?? '') === 'save_food');
 ?>
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -132,9 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <?php if ($success): ?><div class="success-message cb-staff-notice" data-staff-notice data-auto-dismiss role="status" aria-live="polite"><span><?= cbEscape($success) ?></span><button type="button" data-dismiss-notice aria-label="Dismiss success message">&times;</button></div><?php endif; ?>
 <div id="food-availability-notice" class="success-message cb-staff-notice" role="status" aria-live="polite" hidden><span></span><button type="button" aria-label="Dismiss availability message">&times;</button></div>
 <main class="container">
-<header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p>Fresh food and juice reset at midnight Philippine time. Soft drinks and bottled water keep their availability until you change it.</p></header>
-<div class="cb-store-workspace">
-<section class="cb-store-panel"><h2>Store details</h2>
+<header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p><?= cbEscape(cbStoreStatusLabel($store)) ?></p></header>
+<nav class="cb-store-view-tabs" aria-label="Store workspace">
+<a href="staff_menu.php" <?= !$settingsView ? 'aria-current="page"' : '' ?>>Menu <span><?= count($foods) ?></span></a>
+<a href="staff_menu.php?view=settings" <?= $settingsView ? 'aria-current="page"' : '' ?>>Store settings</a>
+</nav>
+<?php if ($settingsView): ?>
+<section class="cb-store-panel cb-store-settings" aria-labelledby="store-settings-title"><h2 id="store-settings-title">Store settings</h2><p>Update your kitchen details, opening hours, and payment options in one place.</p>
 <form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
 <label for="store-name">Store name</label><input id="store-name" name="store_name" maxlength="100" required value="<?= cbEscape($store['store_name']) ?>">
 <label for="store-description">Description</label><textarea id="store-description" name="store_description" maxlength="255"><?= cbEscape($store['description']) ?></textarea>
@@ -164,11 +173,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 </fieldset>
 <label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Accept new orders during store hours</label><p class="cb-store-help">Switch this off to pause orders even during opening hours. Switching it on does not override your closing time.</p><button class="btn">Save store</button>
 </form></section>
-<div class="cb-store-menu-column">
-<section class="cb-store-panel"><h2><?= $edit['item_id'] ? 'Edit food' : 'Add food' ?></h2>
-<form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_food"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $edit['item_id'] ?>">
+<?php else: ?>
+<details class="cb-store-panel cb-food-editor" id="food-editor" <?= $editorOpen ? 'open' : '' ?>>
+<summary><span><strong><?= $edit['item_id'] ? 'Edit food' : 'Add food' ?></strong><small>Name, photo, price, and availability</small></span><span class="cb-editor-expand" aria-hidden="true">+</span></summary>
+<form class="cb-food-editor-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_food"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $edit['item_id'] ?>">
+<div>
 <label for="food-name">Food name</label><input id="food-name" name="item_name" maxlength="100" required value="<?= cbEscape($edit['item_name']) ?>">
 <label for="food-description">Description</label><textarea id="food-description" name="description" maxlength="255"><?= cbEscape($edit['description']) ?></textarea>
+<div class="cb-store-fields"><div><label for="food-category">Category</label><select id="food-category" name="category_id" required><option value="">Choose category</option><?php foreach ($categories as $category): ?><option value="<?= (int) $category['category_id'] ?>" <?= (int) $edit['category_id'] === (int) $category['category_id'] ? 'selected' : '' ?>><?= cbEscape($category['category_name']) ?></option><?php endforeach; ?></select></div>
+<div><label for="food-price">Price (PHP)</label><input id="food-price" type="number" name="price" min="0.01" max="999999.99" step="0.01" required value="<?= cbEscape($edit['price']) ?>"></div></div>
+<label class="cb-food-switch-label" for="food-availability"><input id="food-availability" type="checkbox" name="is_available" value="1" role="switch" data-availability-reset="<?= $edit['keeps_availability'] ? 'never' : 'daily' ?>" aria-label="Food available for ordering" aria-describedby="food-availability-help" <?= $edit['is_available'] ? 'checked' : '' ?>><span class="cb-switch-track" aria-hidden="true"></span><span class="cb-switch-state"><span class="cb-switch-on">Available</span><span class="cb-switch-off">Unavailable</span></span></label>
+<p id="food-availability-help" class="cb-store-help">Fresh food and cups of juice reset to unavailable at midnight Philippine time. Soft drinks and bottled water stay available across days unless you switch them off. Categorize drinks under Beverages or a matching drinks category.</p>
+</div>
+<div>
 <label for="food-photo">Food photo (optional)</label>
 <input id="food-photo" name="food_photo" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="food-photo-help">
 <p id="food-photo-help" class="cb-store-help">Upload from your computer: JPEG, PNG, or WebP, up to 3 MB. Leave blank to keep the existing photo.</p>
@@ -176,13 +193,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <img id="food-photo-preview" class="cb-food-photo cb-food-photo-preview" src="<?= cbEscape($currentPhoto ?: 'data:,') ?>" alt="Food photo preview" <?= $currentPhoto ? '' : 'hidden' ?>>
 <p id="food-photo-message" class="cb-store-help" role="status"></p>
 <?php if ($currentPhoto): ?><label class="cb-store-check"><input type="checkbox" name="remove_photo"> Remove current photo (a new upload replaces it)</label><?php endif; ?>
-<div class="cb-store-fields"><div><label for="food-category">Category</label><select id="food-category" name="category_id" required><option value="">Choose category</option><?php foreach ($categories as $category): ?><option value="<?= (int) $category['category_id'] ?>" <?= (int) $edit['category_id'] === (int) $category['category_id'] ? 'selected' : '' ?>><?= cbEscape($category['category_name']) ?></option><?php endforeach; ?></select></div>
-<div><label for="food-price">Price (PHP)</label><input id="food-price" type="number" name="price" min="0.01" max="999999.99" step="0.01" required value="<?= cbEscape($edit['price']) ?>"></div></div>
-<label class="cb-food-switch-label" for="food-availability"><input id="food-availability" type="checkbox" name="is_available" value="1" role="switch" data-availability-reset="<?= $edit['keeps_availability'] ? 'never' : 'daily' ?>" aria-label="Food available for ordering" aria-describedby="food-availability-help" <?= $edit['is_available'] ? 'checked' : '' ?>><span class="cb-switch-track" aria-hidden="true"></span><span class="cb-switch-state"><span class="cb-switch-on">Available</span><span class="cb-switch-off">Unavailable</span></span></label>
-<p id="food-availability-help" class="cb-store-help">Fresh food and cups of juice reset to unavailable at midnight Philippine time. Soft drinks and bottled water stay available across days unless you switch them off. Categorize drinks under Beverages or a matching drinks category.</p>
-<div class="cb-store-actions"><button class="btn" type="submit"><?= $edit['item_id'] ? 'Save food' : 'Add food' ?></button></div>
-</form></section>
-<section class="cb-store-section"><h2>Your menu</h2><p>Daily-reset items need to be switched on each day. Soft drinks and bottled water do not reset. Existing orders are not cancelled.</p><div class="cb-store-grid">
+</div>
+<div class="cb-store-actions cb-food-editor-actions"><button class="btn" type="submit"><?= $edit['item_id'] ? 'Save food' : 'Add food' ?></button><a class="btn btn-secondary" href="staff_menu.php">Cancel</a></div>
+</form></details>
+<section class="cb-store-section"><h2>Your menu</h2><p>Manage your food here. Fresh food and juice reset at midnight; water and soft drinks keep their availability.</p><div class="cb-store-grid">
 <?php foreach ($foods as $food): ?><article class="cb-store-panel">
 <?php if ($photo = cbFoodPhotoUrl($food['image_path'])): ?><img class="cb-food-photo" src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($food['item_name']) ?>" loading="lazy" width="640" height="400"><?php endif; ?>
 <span class="cb-store-kicker"><?= cbEscape($food['category_name']) ?></span><h3><?= cbEscape($food['item_name']) ?></h3><p><?= cbEscape($food['description']) ?></p><strong>PHP <?= number_format((float) $food['price'],2) ?></strong>
@@ -197,7 +211,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <button class="btn cb-food-delete" type="submit" data-delete-food-button disabled aria-label="Remove <?= cbEscape($food['item_name']) ?>">Remove food</button>
 </form></div></article><?php endforeach; ?>
 <?php if (!$foods): ?><p>Your store is ready. Add your first food above.</p><?php endif; ?>
-</div></section></div></div></main>
+</div></section>
+<?php endif; ?>
+</main>
 <dialog id="food-delete-dialog" class="cb-food-delete-dialog" aria-labelledby="food-delete-title" aria-describedby="food-delete-message">
 <h2 id="food-delete-title">Remove this food?</h2>
 <p id="food-delete-message">Remove <strong id="food-delete-name"></strong> from your menu? It will no longer appear for sale. This cannot be undone here.</p>
