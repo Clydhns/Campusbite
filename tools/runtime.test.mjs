@@ -232,6 +232,25 @@ try {
   check(staffDrinks.html.includes(`data-availability-reset="never" data-item-id="${coke.item_id}"`)
     && staffDrinks.html.includes('No daily reset'),
     'Staff cards label soft drinks as no-reset items and retain the exception in the editor');
+  const desserts=(await db.query("INSERT INTO public.categories(category_name) VALUES ('Desserts') RETURNING category_id")).rows[0];
+  await db.query("INSERT INTO public.menu_items(category_id,item_name,price,store_id) VALUES ($1,'Banana cue',15,1),($2,'Cake slice',30,1),($3,'Other Kitchen Juice',20,2)",
+    [snackCategory.category_id,desserts.category_id,beverages.category_id]);
+  for(const route of ['menu.php?store=1','menu.php?store=2','menu.php']) {
+    const sorted=await student(route);
+    const cards=[...sorted.html.matchAll(/<article\s+class="food-card"[\s\S]*?<\/article>/g)].map(match=>({
+      category:match[0].match(/data-category="([^"]+)"/)[1],
+      store:match[0].match(/class="cb-food-store">([^<]+)</)[1]
+    }));
+    const ranks=new Map();
+    for(const card of cards) {
+      const rank=card.category==='Beverages'?3:card.category==='Rice Meals'?0:card.category==='Snacks'?1:2;
+      assert.ok(rank >= (ranks.get(card.store) ?? -1),route+': '+card.category);
+      ranks.set(card.store,rank);
+    }
+    assert.ok(cards.length>0);
+    assert.ok(sorted.html.indexOf('data-category="Rice Meals"') < sorted.html.indexOf('data-category="Beverages"'));
+  }
+  check(true,'Menus and category tabs show meals first, snacks and desserts next, and drinks last in individual and all-kitchen views');
   await db.exec('UPDATE public.menu_items SET store_id=1 WHERE item_id=2; UPDATE public.menu_items SET is_available=0 WHERE item_id=1');
   const alternative=await student('dashboard.php');
   check(heroSection(alternative.html).includes('Other Meal') && !heroSection(alternative.html).includes('Fixture Meal')

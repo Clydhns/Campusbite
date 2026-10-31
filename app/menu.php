@@ -127,7 +127,11 @@ try {
     $categories = $pdo->query("
         SELECT category_id, category_name
         FROM categories
-        ORDER BY category_name
+        ORDER BY CASE
+            WHEN category_name ~* '(^|[^a-z])(beverages?|drinks?|soft[ -]?drinks?|juices?|coffees?|teas?|sodas?|water|shakes?|smoothies?)([^a-z]|$)' THEN 3
+            WHEN category_name ~* '(rice|meal|main|pasta|noodle|entree)' THEN 0
+            WHEN category_name ~* '(snack|bread|sandwich)' THEN 1
+            ELSE 2 END, category_name
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     $menuQuery = $pdo->prepare("
@@ -144,7 +148,11 @@ try {
         INNER JOIN categories c
             ON mi.category_id = c.category_id
         WHERE mi.archived_at IS NULL AND s.is_open=1 AND store_owner.is_active=1 AND store_owner.role_id=2 AND (?=0 OR mi.store_id=?)
-        ORDER BY s.store_name, c.category_name, mi.item_name
+        ORDER BY s.store_name, CASE
+            WHEN c.category_name ~* '(^|[^a-z])(beverages?|drinks?|soft[ -]?drinks?|juices?|coffees?|teas?|sodas?|water|shakes?|smoothies?)([^a-z]|$)' THEN 3
+            WHEN c.category_name ~* '(rice|meal|main|pasta|noodle|entree)' THEN 0
+            WHEN c.category_name ~* '(snack|bread|sandwich)' THEN 1
+            ELSE 2 END, c.category_name, mi.item_name, mi.item_id
     ");
     $menuQuery->execute([$selectedStore,$selectedStore]);
     $menuItems = $menuQuery->fetchAll(PDO::FETCH_ASSOC);
