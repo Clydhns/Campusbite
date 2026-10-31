@@ -164,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 </fieldset>
 <label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Accept new orders during store hours</label><p class="cb-store-help">Switch this off to pause orders even during opening hours. Switching it on does not override your closing time.</p><button class="btn">Save store</button>
 </form></section>
+<div class="cb-store-menu-column">
 <section class="cb-store-panel"><h2><?= $edit['item_id'] ? 'Edit food' : 'Add food' ?></h2>
 <form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_food"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>"><input type="hidden" name="item_id" value="<?= (int) $edit['item_id'] ?>">
 <label for="food-name">Food name</label><input id="food-name" name="item_name" maxlength="100" required value="<?= cbEscape($edit['item_name']) ?>">
@@ -180,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <label class="cb-food-switch-label" for="food-availability"><input id="food-availability" type="checkbox" name="is_available" value="1" role="switch" data-availability-reset="<?= $edit['keeps_availability'] ? 'never' : 'daily' ?>" aria-label="Food available for ordering" aria-describedby="food-availability-help" <?= $edit['is_available'] ? 'checked' : '' ?>><span class="cb-switch-track" aria-hidden="true"></span><span class="cb-switch-state"><span class="cb-switch-on">Available</span><span class="cb-switch-off">Unavailable</span></span></label>
 <p id="food-availability-help" class="cb-store-help">Fresh food and cups of juice reset to unavailable at midnight Philippine time. Soft drinks and bottled water stay available across days unless you switch them off. Categorize drinks under Beverages or a matching drinks category.</p>
 <div class="cb-store-actions"><button class="btn" type="submit"><?= $edit['item_id'] ? 'Save food' : 'Add food' ?></button></div>
-</form></section></div>
+</form></section>
 <section class="cb-store-section"><h2>Your menu</h2><p>Daily-reset items need to be switched on each day. Soft drinks and bottled water do not reset. Existing orders are not cancelled.</p><div class="cb-store-grid">
 <?php foreach ($foods as $food): ?><article class="cb-store-panel">
 <?php if ($photo = cbFoodPhotoUrl($food['image_path'])): ?><img class="cb-food-photo" src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($food['item_name']) ?>" loading="lazy" width="640" height="400"><?php endif; ?>
@@ -196,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 <button class="btn cb-food-delete" type="submit" data-delete-food-button disabled aria-label="Remove <?= cbEscape($food['item_name']) ?>">Remove food</button>
 </form></div></article><?php endforeach; ?>
 <?php if (!$foods): ?><p>Your store is ready. Add your first food above.</p><?php endif; ?>
-</div></section></main>
+</div></section></div></div></main>
 <dialog id="food-delete-dialog" class="cb-food-delete-dialog" aria-labelledby="food-delete-title" aria-describedby="food-delete-message">
 <h2 id="food-delete-title">Remove this food?</h2>
 <p id="food-delete-message">Remove <strong id="food-delete-name"></strong> from your menu? It will no longer appear for sale. This cannot be undone here.</p>

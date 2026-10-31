@@ -693,6 +693,9 @@ try {
   check(drinkPlaced.status===302 && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[coke.item_id])).rows.length===0,
     'Soft drinks pass menu, cart and checkout validation without a daily availability record');
   const hoursPage=await staff('staff_menu.php');
+  check(hoursPage.html.includes('class="cb-store-menu-column"')
+    && /<div class="cb-store-menu-column">[\s\S]*value="save_food"[\s\S]*<h2>Your menu<\/h2>[\s\S]*data-food-availability/.test(hoursPage.html),
+    'Food editor and menu inventory share the content-sized right column instead of stretching the editor to store-settings height');
   check(hoursPage.html.includes('name="opens_at" type="time"') && hoursPage.html.includes('name="closes_at" type="time"'),
     'Staff can edit their daily opening and closing times with Philippine-time guidance');
   const previousHours=(await db.query('SELECT opens_at,closes_at FROM stores WHERE store_id=1')).rows[0];

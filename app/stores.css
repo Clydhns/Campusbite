@@ -25,7 +25,11 @@
 .cb-store-tile > span:last-child { font-size:13px; font-weight:800; color:#a61f2e; }
 .cb-store-kicker,.cb-food-store { color:#8b4e20; font-size:11px; font-weight:900; letter-spacing:1px; }
 .cb-food-store { display:block; margin:10px 0; }
-.cb-store-workspace { display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:24px; margin-bottom:36px; }
+.cb-store-workspace { display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); align-items:start; gap:24px; margin-bottom:36px; }
+.cb-store-menu-column { display:grid; gap:28px; min-width:0; }
+.cb-store-menu-column > .cb-store-section { margin:0; }
+.cb-store-menu-column .cb-store-grid { grid-template-columns:minmax(0,1fr); align-items:start; }
+@media(min-width:1100px) { .cb-store-menu-column .cb-store-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .cb-store-panel h2 { font-size:22px; margin:0 0 22px; }
 .cb-store-panel label { display:block; font-size:13px; font-weight:800; margin:16px 0 8px; }
 .cb-store-panel input:not([type=hidden]):not([type=checkbox]),.cb-store-panel select,.cb-store-panel textarea { width:100%; }
