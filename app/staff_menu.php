@@ -139,8 +139,9 @@ $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
 <main class="container">
 <header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p><?= cbEscape(cbStoreStatusLabel($store)) ?></p></header>
 <?php if ($settingsView): ?>
-<section class="cb-store-panel cb-store-settings" aria-labelledby="store-settings-title"><div class="cb-store-profile-heading"><h2 id="store-settings-title">Store Profile</h2><a class="btn btn-secondary" href="staff_profile.php">Account details</a></div><p>Update your kitchen details, opening hours, and payment options in one place.</p>
-<form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
+<section class="cb-store-settings" aria-labelledby="store-settings-title"><div class="cb-store-profile-heading"><h2 id="store-settings-title">Store Profile</h2><a class="btn btn-secondary" href="staff_profile.php">Account details</a></div><p>Update your kitchen details, opening hours, and payment options in one place.</p>
+<form class="cb-store-profile-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
+<fieldset class="cb-store-panel cb-store-profile-column"><legend>Store details</legend>
 <label for="store-name">Store name</label><input id="store-name" name="store_name" maxlength="100" required value="<?= cbEscape($store['store_name']) ?>">
 <label for="store-description">Description</label><textarea id="store-description" name="store_description" maxlength="255"><?= cbEscape($store['description']) ?></textarea>
 <fieldset class="cb-store-payments"><legend>Store hours</legend>
@@ -148,7 +149,9 @@ $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
 <div class="cb-store-fields"><div><label for="store-opens">Opening time</label><input id="store-opens" name="opens_at" type="time" step="60" required value="<?= cbEscape(is_string($_POST['opens_at'] ?? null) && $error ? $_POST['opens_at'] : substr($store['opens_at'],0,5)) ?>"></div>
 <div><label for="store-closes">Closing time</label><input id="store-closes" name="closes_at" type="time" step="60" required value="<?= cbEscape(is_string($_POST['closes_at'] ?? null) && $error ? $_POST['closes_at'] : substr($store['closes_at'],0,5)) ?>"></div></div>
 <p class="cb-store-help">Daily, in Philippine time. No new orders outside these hours, including water and soft drinks. A closing time earlier than opening means the next morning. Existing orders can still be completed.</p></fieldset>
-<fieldset class="cb-store-payments" id="store-payments">
+<label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Accept new orders during store hours</label><p class="cb-store-help">Switch this off to pause orders even during opening hours. Switching it on does not override your closing time.</p>
+</fieldset>
+<fieldset class="cb-store-panel cb-store-payments cb-store-profile-column" id="store-payments">
 <legend>Payment methods</legend>
 <input type="hidden" name="payment_options_present" value="1">
 <p class="cb-store-help">Choose which payment options customers can use at checkout.</p>
@@ -167,7 +170,7 @@ $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
 </div>
 <p class="cb-store-help" id="store-payment-summary" role="status"><?= $acceptGcash ? 'Cash and GCash are available after saving these settings.' : 'Cash is available. Turn on GCash and enter your receiving number to offer both.' ?></p>
 </fieldset>
-<label class="cb-store-check"><input type="checkbox" name="is_open" <?= $store['is_open'] ? 'checked' : '' ?>> Accept new orders during store hours</label><p class="cb-store-help">Switch this off to pause orders even during opening hours. Switching it on does not override your closing time.</p><button class="btn">Save store</button>
+<div class="cb-store-profile-actions"><p>Save to apply changes to your store.</p><button class="btn" type="submit">Save store</button></div>
 </form></section>
 <?php else: ?>
 <details class="cb-store-panel cb-food-editor" id="food-editor" <?= $editorOpen ? 'open' : '' ?>>
