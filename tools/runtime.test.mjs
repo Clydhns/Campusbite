@@ -125,6 +125,12 @@ try {
     && !/<script\b|<img\b|<form\b/i.test(introduction.html),
     'Centered public landing has hidden decorative lettering, one primary hero action and account/privacy links without extra scripts, photos or forms');
   const publicLogin=await anon('login.php');
+  const loginView=publicLogin.html.match(/<section\b[^>]*id="login-view"[\s\S]*?<\/section>/)?.[0] || '';
+  const registerView=publicLogin.html.match(/<section\b[^>]*id="register-view"[\s\S]*?<\/section>/)?.[0] || '';
+  check(loginView.includes('action="login.php"') && loginView.includes('id="login-password-help"')
+    && !loginView.includes('auth-project-note')
+    && registerView.includes('auth-project-note') && registerView.includes('index.php#data-use'),
+    'Login omits the repeated project notice while preserving password guidance, the login form and registration disclosure');
   check(publicLogin.csp?.includes("form-action 'self'") && publicLogin.csp?.includes("base-uri 'self'")
     && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
     && publicLogin.html.includes('index.php#data-use'),

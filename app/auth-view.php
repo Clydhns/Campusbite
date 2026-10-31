@@ -39,7 +39,6 @@ function authEscape($value): string {
             <span class="form-eyebrow">WELCOME BACK</span>
             <h1 id="login-title" tabindex="-1">Sign in to CampusBite</h1>
             <p class="description">Log in to your CampusBite account.</p>
-            <p class="auth-project-note"><strong>Independent student project.</strong> CampusBite is a campus food-ordering project, not an official school portal. <a href="index.php#data-use">About the project and data use</a>.</p>
             <?php if (!$signup && $error !== ""): ?>
                 <div class="error" role="alert"><?= authEscape($error) ?></div>
             <?php endif; ?>
