@@ -25,13 +25,11 @@
 .cb-store-tile > span:last-child { font-size:13px; font-weight:800; color:#a61f2e; }
 .cb-store-kicker,.cb-food-store { color:#8b4e20; font-size:11px; font-weight:900; letter-spacing:1px; }
 .cb-food-store { display:block; margin:10px 0; }
-.cb-store-view-tabs { display:flex; flex-wrap:wrap; gap:6px; width:fit-content; max-width:100%; padding:6px; margin:0 0 28px; border:1px solid #f1d5bf; border-radius:999px; background:#fff3e8; }
-.cb-store-view-tabs a { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:44px; padding:10px 22px; border-radius:999px; color:#684632; text-decoration:none; font-size:14px; font-weight:800; }
-.cb-store-view-tabs a[aria-current="page"] { background:#e63946; color:white; }
-.cb-store-view-tabs a:not([aria-current]):hover { background:#ffe6d2; }
-.cb-store-view-tabs a:focus-visible,.cb-food-editor > summary:focus-visible { outline:3px solid #a61f2e; outline-offset:4px; }
-.cb-store-view-tabs a span { display:inline-grid; place-items:center; min-width:24px; padding:0 6px; border-radius:20px; background:#ffffff30; font-size:12px; }
+.cb-food-editor > summary:focus-visible { outline:3px solid #a61f2e; outline-offset:4px; }
 .cb-store-settings { max-width:860px; margin:0 auto 36px; }
+.cb-store-profile-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.cb-store-profile-heading h2 { margin:0; }
+.cb-store-profile-heading .btn { min-height:44px; }
 .cb-food-editor { margin:0 0 32px; }
 .cb-food-editor > summary { display:flex; justify-content:space-between; align-items:center; gap:20px; cursor:pointer; list-style:none; border-radius:8px; }
 .cb-food-editor > summary::-webkit-details-marker { display:none; }
@@ -93,7 +91,7 @@
 .cb-store-filter select { min-width:0; max-width:100%; }
 .cb-store-filter label { font-size:13px; font-weight:800; }
 @media(max-width:960px) { .cb-store-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(max-width:700px) { .cb-food-editor-form,.cb-store-grid,.cb-store-fields { grid-template-columns:minmax(0,1fr); } .cb-store-panel,.cb-store-tile { padding:22px; } .cb-student .cb-staff-notice { right:16px; } .cb-store-view-tabs a { padding-inline:18px; } }
+@media(max-width:700px) { .cb-food-editor-form,.cb-store-grid,.cb-store-fields { grid-template-columns:minmax(0,1fr); } .cb-store-panel,.cb-store-tile { padding:22px; } .cb-student .cb-staff-notice { right:16px; } }
 @media(prefers-reduced-motion:reduce) { .cb-store-tile,.cb-student .cb-staff-notice,.cb-store-panel #food-photo::file-selector-button { transition:none; } .cb-store-tile:hover { transform:none; } }
 @media(prefers-reduced-motion:reduce) { .cb-student .cb-staff-notice[data-auto-dismiss] { animation-timing-function:step-end; } }
 .cb-store-hours { display:block; margin:8px 0; color:#705746; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }

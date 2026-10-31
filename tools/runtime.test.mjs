@@ -450,6 +450,23 @@ try {
   check(true,'Repeating cancellation cannot change legacy serving counts');
   const staff=client(); await signin(staff,'staff@example.invalid');
   for(const route of ['staff_dashboard.php','staff_menu.php','staff_profile.php']) assert.equal((await staff(route)).status,200);
+  for(const [route,active] of [['staff_dashboard.php','Dashboard'],['staff_menu.php','Menu'],['staff_menu.php?view=settings','Store Profile'],['staff_profile.php','Store Profile']]) {
+    const page=await staff(route);
+    const navigation=page.html.match(/<nav\b[^>]*aria-label="Store navigation"[\s\S]*?<\/nav>/)?.[0] || '';
+    assert.ok(navigation.includes('Store workspace') && !navigation.includes('My Store') && !navigation.includes('My Profile'));
+    assert.ok(navigation.includes('href="staff_menu.php"') && navigation.includes('href="staff_menu.php?view=settings"'));
+    assert.equal((navigation.match(/aria-current="page"/g) || []).length,1);
+    assert.ok(navigation.includes('aria-current="page">'+active+'</a>'));
+  }
+  check(true,'Shared store navbar has Dashboard, Menu and Store Profile with one correct active item on every store page');
+  const storeDashboard=await staff('staff_dashboard.php');
+  const storeProfile=await staff('staff_menu.php?view=settings');
+  const accountDetails=await staff('staff_profile.php');
+  check(storeDashboard.html.includes('Store Dashboard') && !storeDashboard.html.includes('Staff Dashboard')
+    && storeProfile.html.includes('href="staff_profile.php">Account details</a>')
+    && accountDetails.html.includes('Store account details.') && accountDetails.html.includes('name="current_password"')
+    && accountDetails.html.includes('Back to Store Profile'),
+    'Store dashboard branding and Store Profile retain access to password-protected personal account editing');
   const store=await staff('staff_menu.php');
   const food=await staff('staff_menu.php',{csrf_token:token(store.html),action:'save_food',item_id:'0',item_name:'New Fixture Meal',description:'Test fixture',price:'75',category_id:'1',is_available:'1'});
   assert.equal(food.status,302);
@@ -693,11 +710,12 @@ try {
   check(drinkPlaced.status===302 && (await db.query('SELECT daily_menu_id FROM public.daily_menu WHERE item_id=$1',[coke.item_id])).rows.length===0,
     'Soft drinks pass menu, cart and checkout validation without a daily availability record');
   const menuWorkspace=await staff('staff_menu.php');
-  check(menuWorkspace.html.includes('aria-label="Store workspace"')
-    && /<a href="staff_menu.php" aria-current="page"/.test(menuWorkspace.html)
+  check(menuWorkspace.html.includes('aria-label="Store navigation"')
+    && /<a href="staff_menu.php"[^>]*aria-current="page"/.test(menuWorkspace.html)
     && /<details\b[^>]*id="food-editor"\s*>/.test(menuWorkspace.html)
     && menuWorkspace.html.includes('<h2>Your menu</h2>')
-    && !menuWorkspace.html.includes('name="opens_at"') && !menuWorkspace.html.includes('cb-store-menu-column'),
+    && !menuWorkspace.html.includes('name="opens_at"') && !menuWorkspace.html.includes('cb-store-menu-column')
+    && !menuWorkspace.html.includes('cb-store-view-tabs'),
     'Default staff workspace prioritizes a full-width menu and collapsed food editor, separate from store settings');
   const editingFood=await staff('staff_menu.php?edit=1');
   const addingFood=await staff('staff_menu.php?add=1');
@@ -710,7 +728,7 @@ try {
     && invalidFood.html.includes('value="Invalid fixture"'),
     'Food validation errors keep the editor open and retain entered values');
   const hoursPage=await staff('staff_menu.php?view=settings');
-  check(/href="staff_menu.php\?view=settings" aria-current="page"/.test(hoursPage.html)
+  check(/href="staff_menu.php\?view=settings"[^>]*aria-current="page"/.test(hoursPage.html)
     && !hoursPage.html.includes('<h2>Your menu</h2>') && !hoursPage.html.includes('value="save_food"'),
     'Store settings has its own focused view without menu cards or the food form');
   check(hoursPage.html.includes('name="opens_at" type="time"') && hoursPage.html.includes('name="closes_at" type="time"'),

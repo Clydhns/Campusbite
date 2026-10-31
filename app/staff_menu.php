@@ -128,7 +128,7 @@ $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <?php require __DIR__ . '/components/favicon.php'; ?>
-<title>My Store - CampusBite</title>
+<title><?= $settingsView ? 'Store Profile' : 'Menu' ?> - CampusBite</title>
 <link rel="stylesheet" href="student-pages.css?v=1"><link rel="stylesheet" href="student-navbar.css?v=1"><link rel="stylesheet" href="stores.css?v=<?= (int) filemtime(__DIR__ . '/stores.css') ?>">
 <link rel="stylesheet" href="staff-navbar.css?v=<?= (int) filemtime(__DIR__ . '/staff-navbar.css') ?>">
 </head><body class="cb-student" data-staff-workspace="<?= (int) $_SESSION['user_id'] ?>-<?= (int) $store['store_id'] ?>" data-availability-until="<?= strtotime('tomorrow') * 1000 ?>">
@@ -138,12 +138,8 @@ $editorOpen = $editId > 0 || ($_GET['add'] ?? '') === '1'
 <div id="food-availability-notice" class="success-message cb-staff-notice" role="status" aria-live="polite" hidden><span></span><button type="button" aria-label="Dismiss availability message">&times;</button></div>
 <main class="container">
 <header class="page-title"><span class="cb-page-eyebrow">YOUR KITCHEN. YOUR MENU.</span><h1><?= cbEscape($store['store_name']) ?></h1><p><?= cbEscape(cbStoreStatusLabel($store)) ?></p></header>
-<nav class="cb-store-view-tabs" aria-label="Store workspace">
-<a href="staff_menu.php" <?= !$settingsView ? 'aria-current="page"' : '' ?>>Menu <span><?= count($foods) ?></span></a>
-<a href="staff_menu.php?view=settings" <?= $settingsView ? 'aria-current="page"' : '' ?>>Store settings</a>
-</nav>
 <?php if ($settingsView): ?>
-<section class="cb-store-panel cb-store-settings" aria-labelledby="store-settings-title"><h2 id="store-settings-title">Store settings</h2><p>Update your kitchen details, opening hours, and payment options in one place.</p>
+<section class="cb-store-panel cb-store-settings" aria-labelledby="store-settings-title"><div class="cb-store-profile-heading"><h2 id="store-settings-title">Store Profile</h2><a class="btn btn-secondary" href="staff_profile.php">Account details</a></div><p>Update your kitchen details, opening hours, and payment options in one place.</p>
 <form method="POST" enctype="multipart/form-data"><input type="hidden" name="action" value="save_store"><input type="hidden" name="csrf_token" value="<?= cbEscape($token) ?>">
 <label for="store-name">Store name</label><input id="store-name" name="store_name" maxlength="100" required value="<?= cbEscape($store['store_name']) ?>">
 <label for="store-description">Description</label><textarea id="store-description" name="store_description" maxlength="255"><?= cbEscape($store['description']) ?></textarea>

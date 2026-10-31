@@ -18,6 +18,8 @@ if (!$profile) {
     header("Location: login.php");
     exit;
 }
+require_once __DIR__ . '/config/stores.php';
+$store = cbStaffStore($pdo);
 function profileEscape($value): string {
     return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
 }
@@ -83,7 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <?php require __DIR__ . '/components/favicon.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>My Profile - CampusBite</title>
+    <title>Store Profile - Account Details - CampusBite</title>
     <link rel="stylesheet" href="student-pages.css?v=1">
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="admin-profile.css?v=1">
@@ -93,9 +95,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <?php require __DIR__ . '/components/staff-navbar.php'; ?>
 <main class="container">
     <header class="page-title">
-        <span class="cb-page-eyebrow">YOUR ACCOUNT. YOUR DETAILS.</span>
-        <h1>Make yourself at home.</h1>
-        <p>Keep your staff profile up to date.</p>
+        <span class="cb-page-eyebrow">YOUR STORE. YOUR ACCOUNT.</span>
+        <h1>Store account details.</h1>
+        <p>Keep the account that manages your store up to date.</p>
     </header>
     <?php if ($success !== ""): ?>
         <div class="success-message" role="status"><?= profileEscape($success) ?></div>
@@ -126,7 +128,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     <div><label for="contact-number">Contact number <span>(optional)</span></label><input id="contact-number" type="tel" name="contact_number" autocomplete="tel" maxlength="15" value="<?= profileEscape($values["contact_number"]) ?>"></div>
                 </div>
                 <div class="profile-password"><label for="current-password">Current password</label><input id="current-password" type="password" name="current_password" autocomplete="current-password" required></div>
-                <div class="profile-actions"><button class="btn" type="submit">Save changes</button><a class="btn btn-secondary" href="staff_dashboard.php">Back to dashboard</a></div>
+                <div class="profile-actions"><button class="btn" type="submit">Save changes</button><a class="btn btn-secondary" href="staff_menu.php?view=settings">Back to Store Profile</a></div>
             </form>
         </section>
     </div>

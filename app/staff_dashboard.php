@@ -540,7 +540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['sync'] ?? '') === '1'
     >
 
     <title>
-        CampusBite - Staff Dashboard
+        CampusBite - Store Dashboard
     </title>
 
     <style>
@@ -1483,11 +1483,11 @@ campusBiteTracking($pdo, $orders, true);
     <div class="header">
 
         <h1>
-            Staff Dashboard
+            Store Dashboard
         </h1>
 
         <p>
-            Manage customer orders and payment confirmation.
+            Manage your store orders, payments, and pickups.
         </p>
 
         <div class="cb-store-payment-summary">
