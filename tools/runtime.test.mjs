@@ -733,7 +733,12 @@ try {
     && hoursPage.html.includes('class="cb-store-profile-actions"')
     && (hoursPage.html.match(/value="save_store"/g) || []).length===1
     && hoursPage.html.indexOf('name="is_open"') < hoursPage.html.indexOf('id="store-payments"'),
-    'Store Profile splits store details/hours and payments into two independently sized panels within one save form');
+    'Store Profile groups store details/hours and payments into two panels within one save form');
+  const profileStyles=await readFile(path.join(root,'app/stores.css'),'utf8');
+  check(/\.cb-store-profile-form\s*\{[^}]*align-items:stretch/.test(profileStyles)
+    && /\.cb-store-profile-form > \.cb-store-profile-column\s*\{[^}]*align-self:stretch/.test(profileStyles)
+    && /@media\(max-width:960px\)[^\n]*align-self:start/.test(profileStyles),
+    'Store Profile styles share panel height on desktop and restore natural height in the stacked layout');
   check(/href="staff_menu.php\?view=settings"[^>]*aria-current="page"/.test(hoursPage.html)
     && !hoursPage.html.includes('<h2>Your menu</h2>') && !hoursPage.html.includes('value="save_food"'),
     'Store settings has its own focused view without menu cards or the food form');
