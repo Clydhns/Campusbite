@@ -167,8 +167,12 @@ try {
         WHERE mi.archived_at IS NULL AND s.is_open=1
           AND store_owner.is_active=1 AND store_owner.role_id=2
 
-        ORDER BY c.category_name ASC,
-                 mi.item_name ASC
+        ORDER BY CASE
+            WHEN c.category_name ~* '(^|[^a-z])(beverages?|drinks?|soft[ -]?drinks?|juices?|coffees?|teas?|sodas?|water|shakes?|smoothies?)([^a-z]|$)' THEN 3
+            WHEN c.category_name ~* '(^|[^a-z])(desserts?|sweets?|cakes?|pastries|ice[ -]?cream)([^a-z]|$)' THEN 2
+            WHEN c.category_name ~* '(rice|meal|main|pasta|noodle|entree)' THEN 0
+            ELSE 1 END,
+            c.category_name ASC, mi.item_name ASC, mi.item_id ASC
 
 
     ");

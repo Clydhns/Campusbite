@@ -264,6 +264,23 @@ try {
     assert.ok(sorted.html.indexOf('data-category="Rice Meals"') < sorted.html.indexOf('data-category="Beverages"'));
   }
   check(true,'Menus and category tabs show meals first, snacks and desserts next, and drinks last in individual and all-kitchen views');
+  const picks=(await student('dashboard.php')).html.match(/<section class="menu-grid">([\s\S]*?)<\/section>/)?.[1] || '';
+  const pickCards=[...picks.matchAll(/<a class="food-card cb-food-display"[\s\S]*?<\/a>/g)].map(match=>({
+    category:match[0].match(/class="food-category">\s*([^<]+)</)[1].trim(),
+    store:match[0].match(/data-store="(\d+)"/)[1],
+    html:match[0]
+  }));
+  const pickRank=card=>card.category==='Rice Meals'?0:card.category==='Snacks'?1:card.category==='Desserts'?2:3;
+  assert.ok(['Rice Meals','Snacks','Desserts','Beverages'].every(category=>pickCards.some(card=>card.category===category)));
+  for(const cards of [pickCards,...['1','2'].map(store=>pickCards.filter(card=>card.store===store))]) {
+    assert.ok(cards.length>0);
+    cards.forEach((card,index)=>{
+      assert.ok(index===0 || pickRank(cards[index-1])<=pickRank(card),'Today\'s picks: food precedes desserts and drinks');
+      assert.ok(card.html.includes('href="menu.php?store='+card.store+'"'),'Picks still link to their own kitchen');
+      assert.ok(card.html.includes('class="cb-food-availability"'),'Availability remains visible');
+    });
+  }
+  check(true,'Today\'s picks shows meals and snacks before desserts and drinks across all kitchens and each kitchen, retaining store links and availability labels');
   await db.exec('UPDATE public.menu_items SET store_id=1 WHERE item_id=2; UPDATE public.menu_items SET is_available=0 WHERE item_id=1');
   const alternative=await student('dashboard.php');
   check(heroSection(alternative.html).includes('Other Meal') && !heroSection(alternative.html).includes('Fixture Meal')
