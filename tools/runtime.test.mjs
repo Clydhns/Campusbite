@@ -112,6 +112,13 @@ try {
     && introduction.html.includes('Not an official school portal.')
     && introduction.html.includes('Never enter your school-account password'),
     'Minimal landing page retains account links and project notices with one non-duplicated three-step pickup guide');
+  check(introduction.html.includes('class="intro-copy"')
+    && introduction.html.includes('class="break-illustration"')
+    && /<svg\b[^>]*class="pickup-bag"[^>]*aria-hidden="true"[^>]*focusable="false"/.test(introduction.html)
+    && introduction.html.includes('class="returning-user"')
+    && introduction.html.includes('class="password-note"')
+    && !/<script\b|<img\b|<form\b/i.test(introduction.html),
+    'Public landing uses a lightweight decorative brand illustration, clear returning-user access and a password warning without extra scripts, photos or forms');
   const publicLogin=await anon('login.php');
   check(publicLogin.csp?.includes("form-action 'self'") && publicLogin.csp?.includes("base-uri 'self'")
     && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
