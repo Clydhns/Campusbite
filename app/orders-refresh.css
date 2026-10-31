@@ -33,6 +33,9 @@
 .order-progress li.is-reached::before { background:var(--tomato); }
 .order-progress li[aria-current=step] span { box-shadow:0 0 0 4px #fff0ef; }
 .order-pickup-note { margin:0 22px 18px; padding:10px 14px; border-radius:12px; background:var(--green-light); color:var(--green-dark); font-size:13px; }
+.order-payment-confirmed { margin:0 22px 18px; padding:14px 16px; border:1px solid #c5e2cf; border-radius:12px; background:#edf8ef; color:#205d2e; font-size:14px; }
+.order-payment-confirmed strong { font-weight:900; }
+.order-payment-confirmed p { margin:5px 0 0; line-height:1.6; }
 .order-expand { border-top:1px solid #f7e6d8; }
 .order-expand > summary { display:flex; gap:10px; align-items:center; padding:13px 22px; color:#a61f2e; font-size:13px; font-weight:800; cursor:pointer; list-style:none; }
 .order-expand > summary::-webkit-details-marker { display:none; }

@@ -447,11 +447,34 @@ try {
   await assert.rejects(db.exec(`UPDATE public.orders SET status_id=2 WHERE order_id=${Number(second.order_id)}`));
   check(true,'Database trigger prevents preparing an unpaid order');
   const staffOrders=await staff('staff_dashboard.php');
+  const unpaidOrders=await student('orders.php');
+  const ordersVersion=html=>html.match(/data-orders-version="([a-f0-9]{64})"/)?.[1];
+  const emptyNotifications=await student('order_notifications.php');
+  check(emptyNotifications.status===200 && JSON.parse(emptyNotifications.html).confirmed_count===0
+    && !unpaidOrders.html.includes('data-payment-confirmed="'+second.order_id+'"'),
+    'Pending payments do not produce a confirmation badge or paid-order message');
+  check((await anon('order_notifications.php')).status===401
+    && (await staff('order_notifications.php')).status===403
+    && (await student('order_notifications.php',{action:'change'})).status===405,
+    'Payment notifications are read-only and reject signed-out visitors and non-student accounts');
   await staff('staff_dashboard.php',{csrf_token:token(staffOrders.html),action:'confirm_payment',order_id:String(second.order_id)});
   assert.equal((await db.query('SELECT payment_status FROM public.payments WHERE order_id=$1',[second.order_id])).rows[0].payment_status,'Paid');
   const paidConfirmation=await student('checkout.php?success=1&order='+second.order_id);
   check(paidConfirmation.html.includes('data-payment-state="paid"') && paidConfirmation.html.includes('Payment confirmed'),
     'Checkout live responses reflect payment confirmed by the owning staff account');
+  const paidNotifications=await student('order_notifications.php?student_id=999999');
+  const paidOrders=await student('orders.php?sync=1&version='+ordersVersion(unpaidOrders.html));
+  check(JSON.parse(paidNotifications.html).confirmed_count===1 && paidOrders.status===200
+    && paidOrders.html.includes('data-payment-confirmed="'+second.order_id+'"')
+    && paidOrders.html.includes('has confirmed your payment.')
+    && /id="student-order-notifications-count"[^>]*>1<\/span>/.test(paidOrders.html),
+    'Staff confirmation produces both a My Orders badge and payment-confirmed message, ignoring forged student selectors');
+  check((await student('orders.php?sync=1&version='+ordersVersion(paidOrders.html))).status===204,
+    'Unchanged My Orders checks avoid redrawing the page or payment notice');
+  for(const route of ['dashboard.php','menu.php','cart.php','profile.php','checkout.php?success=1&order='+second.order_id]) {
+    assert.ok(/id="student-order-notifications-count"[^>]*>1<\/span>/.test((await student(route)).html),route);
+  }
+  check(true,'Confirmed active-payment badges are present across all shared student navigation pages');
   const staffPaid=await staff('staff_dashboard.php?sync=1&version='+staffVersion(staffOrders.html));
   check(staffPaid.status===200 && staffVersion(staffPaid.html)!==staffVersion(staffOrders.html),
     'Confirmed payments invalidate the staff live snapshot');
@@ -469,6 +492,14 @@ try {
   const completedProgress=[...completedOrders.html.matchAll(/<ol class="order-progress"[\s\S]*?<\/ol>/g)].map(match=>match[0]);
   check(completedProgress.length>0 && completedProgress.every(progress=>progress.includes('Completed</li>') && !progress.includes('Picked up')),
     'My Orders labels its final progress step Completed to match the completed order status');
+  check(completedProgress.every(progress=>progress.includes('Ready to pickup</li>'))
+    && JSON.parse((await student('order_notifications.php')).html).confirmed_count===0
+    && completedOrders.html.includes('data-payment-confirmed="'+second.order_id+'"'),
+    'The progress step reads Ready to pickup; completed orders retain payment confirmation without keeping the active navbar badge');
+  await db.query("UPDATE public.payments SET payment_status='Refunded' WHERE order_id=$1",[second.order_id]);
+  check(!(await student('orders.php')).html.includes('data-payment-confirmed="'+second.order_id+'"'),
+    'Refunded payments are not shown as confirmed payments');
+  await db.query("UPDATE public.payments SET payment_status='Paid' WHERE order_id=$1",[second.order_id]);
   const other=client(); await signin(other,'other@example.invalid');
   const otherOrders=await other('staff_dashboard.php');
   // An empty workspace renders no action forms; inspect only the disposable test
@@ -517,6 +548,11 @@ try {
   check(welcome.status===200 && welcome.html.includes('data-dashboard-user="'+newStudent.user_id+'"')
     && (await registration('profile.php')).html.includes('newstudent@example.invalid'),
     'The newly registered student can open their own dashboard and profile without logging in again');
+  await db.query('UPDATE public.orders SET status_id=2 WHERE order_id=$1',[second.order_id]);
+  check(JSON.parse((await registration('order_notifications.php?student_id=4')).html).confirmed_count===0
+    && JSON.parse((await student('order_notifications.php')).html).confirmed_count===1,
+    'Students can only receive their own payment counts, even when another student has an active paid order');
+  await db.query('UPDATE public.orders SET status_id=4 WHERE order_id=$1',[second.order_id]);
   const privateConfirmation=await registration('checkout.php?success=1&order='+second.order_id);
   check(privateConfirmation.status===302 && privateConfirmation.location==='orders.php'
     && !privateConfirmation.html.includes(second.order_number),

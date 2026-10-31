@@ -6,7 +6,7 @@ $route=$route==='' ? 'index.php' : $route;
 $allowed=['index.php','login.php','register.php','logout.php','dashboard.php','menu.php',
     'cart.php','checkout.php','orders.php','profile.php','staff_dashboard.php','staff_menu.php',
     'staff_profile.php','admin_dashboard.php','admin_users.php','admin_stores.php',
-    'admin_profile.php','payment_receipt.php','submit_payment.php'];
+    'admin_profile.php','payment_receipt.php','submit_payment.php','order_notifications.php'];
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');

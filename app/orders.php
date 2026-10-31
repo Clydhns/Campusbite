@@ -281,7 +281,7 @@ $sql = "
 
     ORDER BY
         CASE WHEN o.status_id IN (1, 2, 3) THEN 0 ELSE 1 END,
-        o.order_datetime DESC
+        o.order_datetime DESC, o.order_id DESC
 ";
 
 $stmt = $pdo->prepare($sql);
@@ -368,6 +368,12 @@ if (
     }
 }
 
+$ordersVersion = hash('sha256', json_encode([(int) $_SESSION['user_id'], $ordersCsrf, $orders, $order_items]));
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['sync'] ?? '') === '1'
+    && is_string($_GET['version'] ?? null) && hash_equals($ordersVersion, $_GET['version'])) {
+    http_response_code(204);
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -1303,7 +1309,7 @@ if (
 </head>
 
 
-<body class="cb-student cb-orders" data-orders-user="<?= (int) $_SESSION['user_id'] ?>">
+<body class="cb-student cb-orders" data-orders-user="<?= (int) $_SESSION['user_id'] ?>" data-orders-version="<?= cbEscape($ordersVersion) ?>">
 
 
 <!-- =====================================================
@@ -1535,7 +1541,7 @@ if (
                 </div>
                 <?php if (in_array($orderGroup, ['active', 'completed'], true)): ?>
                     <ol class="order-progress" aria-label="Order progress: <?= cbEscape($order['status_name']) ?>">
-                        <?php foreach ([1=>'Placed',2=>'Preparing',3=>'Ready',4=>'Completed'] as $step=>$label): ?>
+                        <?php foreach ([1=>'Placed',2=>'Preparing',3=>'Ready to pickup',4=>'Completed'] as $step=>$label): ?>
                             <li class="<?= $step <= $statusId ? 'is-reached' : '' ?>" <?= $step === $statusId && $orderGroup === 'active' ? 'aria-current="step"' : '' ?>><span aria-hidden="true"><?= $step < $statusId || $orderGroup === 'completed' ? '&#10003;' : $step ?></span><?= $label ?></li>
                         <?php endforeach; ?>
                     </ol>
@@ -1546,6 +1552,12 @@ if (
                         <?php else: ?>Your order has been placed with <?= cbEscape($order['store_name']) ?>. Waiting for the kitchen to start preparing it.
                         <?php endif; ?>
                     </p>
+                <?php endif; ?>
+                <?php if ($order['payment_status'] === 'Paid' && empty($order['payment_rejected_at']) && $statusId !== 5): ?>
+                    <div class="order-payment-confirmed" data-payment-confirmed="<?= (int) $order['order_id'] ?>">
+                        <strong>Payment confirmed</strong>
+                        <p><?= cbEscape($order['store_name']) ?> has confirmed your payment.</p>
+                    </div>
                 <?php endif; ?>
                 <?php require __DIR__ . '/components/gcash-payment-proof.php'; ?>
                 <details class="order-expand" data-order-details="<?= (int) $order['order_id'] ?>">
