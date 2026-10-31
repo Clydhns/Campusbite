@@ -163,14 +163,16 @@ $firstName = $_SESSION["first_name"] ?? "Student";
 require_once __DIR__ . '/config/meal-highlights.php';
 $kitchenMeals = [];
 try {
-    $highlightFoods = $pdo->query("SELECT mi.store_id, mi.item_name, mi.image_path, c.category_name
+    // Kitchen identity photos should not disappear when today's food is switched off.
+    $highlightFoods = $selectedStore === 0 ? $menuItems : $pdo->query("SELECT mi.store_id, mi.item_name, mi.image_path, c.category_name
         FROM menu_items mi
         JOIN categories c ON c.category_id=mi.category_id
         JOIN stores s ON s.store_id=mi.store_id
         JOIN users u ON u.user_id=s.staff_user_id
-        WHERE mi.archived_at IS NULL AND ($availabilitySql)=1 AND s.is_open=1 AND u.is_active=1 AND u.role_id=2
+        WHERE mi.archived_at IS NULL AND mi.image_path IS NOT NULL
+        AND s.is_open=1 AND u.is_active=1 AND u.role_id=2
         ORDER BY s.store_name, c.category_name, mi.item_name")->fetchAll(PDO::FETCH_ASSOC);
-    $kitchenMeals = cbStoreMealHighlights($highlightFoods);
+    $kitchenMeals = cbStoreKitchenHighlights($highlightFoods);
 } catch (PDOException $e) {
     error_log($e->getMessage());
 }
@@ -246,7 +248,7 @@ function foodEmoji($category) {
             </a>
             <?php foreach ($stores as $store): $id = (int) $store['store_id']; $meal = $kitchenMeals[$id] ?? null; $photo = cbFoodPhotoUrl($meal['image_path'] ?? null); ?>
                 <a href="menu.php?store=<?= $id ?>" class="cb-store-tile kitchen-tab <?= $selectedStore === $id ? 'is-selected' : '' ?>" data-store-name="<?= h($store['store_name']) ?>" <?= $selectedStore === $id ? 'aria-current="true"' : '' ?>>
-                    <?php if ($photo): ?><img src="<?= h($photo) ?>" alt="" width="76" height="76"><?php else: ?><span class="kitchen-all-icon" aria-hidden="true">&#127869;</span><?php endif; ?>
+                    <?php if ($photo): ?><img src="<?= h($photo) ?>" alt="" width="76" height="76" loading="lazy" decoding="async"><?php else: ?><span class="kitchen-all-icon" aria-hidden="true">&#127869;</span><?php endif; ?>
                     <span class="kitchen-tab-copy"><strong><?= h($store['store_name']) ?></strong><small><?= h($meal['item_name'] ?? 'Explore the menu') ?></small></span>
                     <span class="kitchen-tab-check" aria-hidden="true">&#10003;</span>
                 </a>

@@ -21,3 +21,24 @@ function cbStoreMealHighlights(array $foods): array {
     }
     return $selected;
 }
+
+function cbStoreKitchenHighlights(array $foods): array {
+    $selected = [];
+    $scores = [];
+    foreach (cbStoreMealHighlights($foods) as $id => $meal) {
+        if (!cbFoodPhotoUrl($meal['image_path'] ?? null)) continue;
+        $selected[$id] = $meal;
+        $scores[$id] = 3;
+    }
+    foreach ($foods as $food) {
+        if (!cbFoodPhotoUrl($food['image_path'] ?? null)) continue;
+        $id = (int) $food['store_id'];
+        $category = strtolower((string) ($food['category_name'] ?? ''));
+        $score = preg_match('/beverage|drink|coffee|tea|juice|soda|shake/', $category) ? 1 : 2;
+        if (!isset($scores[$id]) || $score > $scores[$id]) {
+            $selected[$id] = $food;
+            $scores[$id] = $score;
+        }
+    }
+    return $selected;
+}

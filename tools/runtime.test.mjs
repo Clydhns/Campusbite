@@ -155,6 +155,20 @@ try {
     && hero.includes('Fixture Meal') && hero.includes(fixturePhoto) && hero.includes('Currently unavailable'),
     'Switching off keeps photos, prices and store links visible while marking food unavailable');
   const unavailableMenu=await student('menu.php?store=1');
+  const kitchenOptions=html=>html.match(/<nav class="kitchen-options"[\s\S]*?<\/nav>/)?.[0] || '';
+  check(kitchenOptions(unavailableMenu.html).includes(fixturePhoto)
+    && kitchenOptions((await student('menu.php')).html).includes(fixturePhoto),
+    'Kitchen cards retain their food photo when meals are unavailable in selected-store and all-store views');
+  const snackCategory=(await db.query("INSERT INTO public.categories(category_name) VALUES ('Snacks') RETURNING category_id")).rows[0];
+  const snackPhoto='uploads/foods/'+'b'.repeat(32)+'.png';
+  const snack=(await db.query("INSERT INTO public.menu_items(category_id,item_name,price,store_id,image_path,is_available) VALUES ($1,'Fixture Snack Photo',10,2,$2,0) RETURNING item_id",[snackCategory.category_id,snackPhoto])).rows[0];
+  const kitchenFallback=await student('menu.php?store=1');
+  check(kitchenOptions(kitchenFallback.html).includes(snackPhoto)
+    && kitchenOptions(kitchenFallback.html).includes(fixturePhoto),
+    'Each kitchen uses its own photo, falling back to a snack photo when no photographed meal exists');
+  await db.query('UPDATE public.menu_items SET archived_at=NOW() WHERE item_id=$1',[snack.item_id]);
+  check(!kitchenOptions((await student('menu.php?store=1')).html).includes(snackPhoto),
+    'Removed food photos are not reused as kitchen thumbnails');
   const rejected=await student('menu.php?store=1',{csrf_token:token(unavailableMenu.html),item_id:'1',quantity:'1'});
   check(rejected.html.includes('This food is currently unavailable.') && (await student('cart.php')).html.includes('Your cart is empty for now'),
     'Food switched off cannot be added to a cart');
