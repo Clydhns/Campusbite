@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const source=path.join(root,'app'), output=path.join(root,'public');
-const allowed=new Set(['.css','.js','.png','.jpg','.jpeg','.webp','.svg','.ico','.woff','.woff2']);
+const allowed=new Set(['.css','.js','.png','.jpg','.jpeg','.webp','.svg','.ico','.woff','.woff2','.webmanifest']);
 // Ownership verification must be public, without allowing arbitrary HTML files.
 const verificationFiles=new Set(['google122e550ade36cc3a.html']);
 await mkdir(output,{recursive:true});

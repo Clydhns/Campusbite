@@ -5,8 +5,8 @@ if (!is_string($route)) { http_response_code(404); exit('Not found.'); }
 $route=$route==='' ? 'index.php' : $route;
 $allowed=['index.php','login.php','register.php','logout.php','dashboard.php','menu.php',
     'cart.php','checkout.php','orders.php','profile.php','staff_dashboard.php','staff_menu.php',
-    'staff_profile.php','admin_dashboard.php','admin_users.php','admin_stores.php',
-    'admin_profile.php','payment_receipt.php','submit_payment.php','order_notifications.php'];
+    'staff_profile.php','admin_dashboard.php','admin_users.php','admin_stores.php','admin_categories.php',
+    'admin_profile.php','favorites.php','profile_photo.php','payment_receipt.php','submit_payment.php','order_notifications.php'];
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
@@ -54,13 +54,14 @@ try {
         $identity=$identityDatabase->prepare('SELECT u.role_id,u.password_hash,r.role_name FROM users u JOIN roles r ON r.role_id=u.role_id WHERE u.user_id=? AND u.is_active=1');
         $identity->execute([(int)$_SESSION['user_id']]);
         $account=$identity->fetch();
+        $stampKey=$account ? cbCredentialStampKey((int)$account['role_id']) : null;
         if (!$account || (int)$account['role_id']!==(int)($_SESSION['role_id'] ?? 0)
-            || ((int)$account['role_id']===2 && (!is_string($_SESSION['staff_credential_stamp'] ?? null)
-                || !hash_equals(cbStaffCredentialStamp($account['password_hash']),$_SESSION['staff_credential_stamp'])))) {
+            || ($stampKey!==null && (!is_string($_SESSION[$stampKey] ?? null)
+                || !hash_equals(cbStaffCredentialStamp($account['password_hash']),$_SESSION[$stampKey])))) {
             $_SESSION=[]; session_destroy(); header('Location: login.php',true,302); exit;
         }
         $_SESSION['role_name']=$account['role_name'];
-        unset($identity,$identityDatabase);
+        unset($identity,$identityDatabase,$stampKey);
     }
     $_SERVER['SCRIPT_NAME']='/'.$route;
     chdir(dirname(__DIR__).'/app');

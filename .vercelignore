@@ -9,3 +9,6 @@ tools/package*.json
 private-data/
 .env*
 README.md
+tools/.dev-data/
+tools/dev-server.mjs
+tools/dev-router.php

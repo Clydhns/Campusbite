@@ -279,6 +279,7 @@ function foodEmoji($category) {
             class="search-box"
             placeholder="Search for food..."
             aria-label="Search for food"
+            value="<?= cbEscape(is_string($_GET["q"] ?? null) ? substr($_GET["q"], 0, 100) : "") ?>"
         >
 
         <a href="cart.php" class="cart-button">
@@ -466,6 +467,9 @@ function foodEmoji($category) {
             filterFoods();
         });
     });
+
+    // A search started on Home (?q=) opens with matching food already filtered.
+    if (searchInput.value.trim()) filterFoods();
 </script>
 
 </body>

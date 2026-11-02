@@ -1,0 +1,41 @@
+/* Student Home: compact Today's Picks on phones and the floating current-order card. */
+
+/* Foods without a photo get a placeholder the same shape as a photo, so cards line up. */
+.cb-food-placeholder { display:grid; place-items:center; width:100%; aspect-ratio:8/5; margin-bottom:16px; border-radius:14px; background:linear-gradient(135deg,#fff8f0,#ffe4cc); }
+.cb-food-placeholder span { font-size:40px; line-height:1; }
+
+/* Current order: floats above the tab bar on phones, bottom-right on desktop. Tap to open My Orders, × to hide. */
+.cb-order-card { position:fixed; z-index:850; right:24px; bottom:24px; display:flex; align-items:center; width:min(380px,calc(100vw - 32px)); border:1px solid #f4c3bd; border-radius:20px; background:#fff0ef; box-shadow:0 14px 36px #3b2a2030; animation:cb-order-card-in .25s ease-out both; }
+[data-dashboard-live="order-card"][hidden] { display:none; }
+.cb-order-card[data-status="3"] { border-color:#9fd3ad; background:#eaf7ee; }
+.cb-order-card-link { display:flex; flex:1; align-items:center; gap:12px; min-width:0; padding:14px 4px 14px 16px; color:#3b2a20; text-decoration:none; }
+.cb-order-card-link:focus-visible,.cb-order-card-close:focus-visible { outline:3px solid #a61f2e; outline-offset:2px; border-radius:16px; }
+.cb-order-card-icon { display:grid; place-items:center; flex-shrink:0; width:44px; height:44px; border-radius:14px; background:#fff; font-size:22px; }
+.cb-order-card-text { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.cb-order-card-text strong { color:#a61f2e; font-size:16px; font-weight:900; line-height:1.3; }
+.cb-order-card[data-status="3"] .cb-order-card-text strong { color:#1f7a3a; }
+.cb-order-card-text span { color:#684632; font-size:12px; font-weight:700; line-height:1.45; overflow-wrap:anywhere; }
+.cb-order-card-close { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; margin:0 8px 0 0; padding:0; border:0; border-radius:50%; background:transparent; color:#3b2a20; cursor:pointer; }
+.cb-order-card-close:hover { background:#ffffff99; }
+.cb-order-card-close svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:round; }
+@keyframes cb-order-card-in { from { opacity:0; transform:translateY(12px); } }
+/* Leave room so the card never covers the last row of food. */
+body[data-dashboard-user]:has([data-dashboard-live="order-card"]:not([hidden]) .cb-order-card) .dashboard-container { padding-bottom:110px; }
+
+/* Phones: two compact columns of picks instead of one tall card per food. */
+@media(max-width:640px) {
+  body[data-dashboard-user] .menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  body[data-dashboard-user] .menu-grid .food-card { padding:0; overflow:hidden; border-radius:18px; }
+  body[data-dashboard-user] .menu-grid .cb-food-photo,
+  body[data-dashboard-user] .menu-grid .cb-food-placeholder { aspect-ratio:4/3; margin:0; border-radius:0; }
+  body[data-dashboard-user] .menu-grid .cb-food-placeholder span { font-size:32px; }
+  body[data-dashboard-user] .menu-grid .cb-food-store { margin:10px 12px 2px; font-size:9px; letter-spacing:.6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  body[data-dashboard-user] .menu-grid .food-card h3 { display:-webkit-box; margin:0 12px 6px; overflow:hidden; font-size:14px; line-height:1.3; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  body[data-dashboard-user] .menu-grid :where(.food-category,.food-description,.cb-food-display-link) { display:none; }
+  body[data-dashboard-user] .menu-grid .food-bottom { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; padding:0 12px 12px; }
+  body[data-dashboard-user] .menu-grid .food-price { margin:0; font-size:15px; }
+  body[data-dashboard-user] .menu-grid .cb-food-availability { margin:0; padding:3px 7px; font-size:10px; }
+  /* Sit just above the bottom tab bar. */
+  .cb-order-card { right:12px; left:12px; bottom:calc(84px + env(safe-area-inset-bottom)); width:auto; }
+}
+@media(prefers-reduced-motion:reduce) { .cb-order-card { animation:none; } }

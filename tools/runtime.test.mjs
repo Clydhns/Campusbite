@@ -1,6 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
-import { readFile, mkdir, writeFile, copyFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, copyFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { deflateSync, crc32 as zlibCrc32 } from 'node:zlib';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, createHmac } from 'node:crypto';
 import path from 'node:path';
@@ -14,6 +16,8 @@ const sessionSecret=randomBytes(48).toString('hex');
 const hashResult=spawnSync(php,['-r','echo password_hash($argv[1], PASSWORD_DEFAULT);',password],{encoding:'utf8'});
 assert.equal(hashResult.status,0);
 const db=new PGlite();
+// Disposable local stand-in for Supabase Storage, so uploaded profile photos can be served in tests.
+const storageDir=await mkdtemp(path.join(tmpdir(),'campusbite-test-storage-'));
 let server,child,logs='',checks=0;
 const base='http://127.0.0.1:18759';
 const check=(value,label)=>{assert.ok(value,label);checks++;console.log('PASS: '+label);};
@@ -42,7 +46,7 @@ try {
   // Seed the same Philippine calendar day used by the application connections.
   await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
@@ -92,7 +96,7 @@ try {
     'Admin statistics use one query while retaining correct empty, current-day and historical totals');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
-    APP_SESSION_SECRET:sessionSecret,CAMPUSBITE_LOCAL_TEST:'1'}});
+    APP_SESSION_SECRET:sessionSecret,CAMPUSBITE_LOCAL_TEST:'1',CAMPUSBITE_LOCAL_STORAGE_DIR:storageDir,SUPABASE_URL:'',SUPABASE_SECRET_KEY:''}});
   child.stderr.on('data',data=>{logs+=data.toString();}); child.stdout.on('data',data=>{logs+=data.toString();});
   child.on('error',error=>{logs+=error.message;});
   for(let i=0;i<60;i++) {
@@ -430,8 +434,48 @@ try {
     && pinnedConfirmation.html.includes(order.order_number),
     'A confirmation tab continues tracking its original order after checkout at another kitchen');
   const orders=await student('orders.php');
-  check((await student('dashboard.php')).html.includes('src="assets/order-tracking/tracking.js'),
-    'Order tracking still loads when the signed-in student has orders to display');
+  const activeHome=(await student('dashboard.php')).html;
+  const orderCard=activeHome.match(/<aside class="cb-order-card"[\s\S]*?<\/aside>/)?.[0] || '';
+  check(/data-order-key="\d+-1"/.test(orderCard) && orderCard.includes('<strong>Waiting for the kitchen</strong>')
+    && /ORD-\d{8}-\d{3} &middot; [^<]+ &middot; ₱[\d.,]+ &middot; \+1 more/.test(orderCard)
+    && orderCard.includes('<a class="cb-order-card-link" href="orders.php">') && orderCard.includes('aria-label="Hide order update"')
+    && !activeHome.includes('cb-recent-orders') && !activeHome.includes('Recent orders')
+    && !activeHome.includes('src="assets/order-tracking/tracking.js'),
+    'Home shows the newest active order in a dismissible card linking to My Orders, instead of a Recent orders list');
+  {
+    const heart=(html,store)=>html.match(new RegExp(`<form method="POST" action="favorites.php" class="cb-favorite-form">(?:(?!</form>)[\\s\\S])*?name="store_id" value="${store}"[\\s\\S]*?</form>`))?.[0] || '';
+    const favoriteRows=async()=>(await db.query('SELECT store_id FROM public.favorite_stores WHERE student_id=4 ORDER BY store_id')).rows.map(row=>Number(row.store_id));
+    check(activeHome.indexOf('class="cb-home-search-bar"') < activeHome.indexOf('<main class="dashboard-container">')
+      && activeHome.includes('id="home-search"') && activeHome.includes('action="menu.php" method="get"')
+      && activeHome.includes('class="cb-round-button cb-favorites-link" href="favorites.php" aria-label="Favourites"')
+      && heart(activeHome,1).includes('aria-pressed="false"') && heart(activeHome,2).includes('aria-label="Add Other Kitchen to favourites"')
+      && /data-food-name="Fixture Meal" data-store-name="Fixture Kitchen" data-category="[^"]+"/.test(activeHome),
+      'Home has a sticky kitchen and food search, a Favourites button, and a heart on every kitchen');
+    const emptyFavorites=await student('favorites.php');
+    check(emptyFavorites.status===200 && emptyFavorites.html.includes('<h1>Favourites</h1>') && emptyFavorites.html.includes('No favourites yet')
+      && !emptyFavorites.html.includes('cb-favorites-empty" hidden'),'The Favourites page shows an empty state before any kitchen is saved');
+    const favoriteToken=token(heart(activeHome,1));
+    const saved=await student('favorites.php',{csrf_token:favoriteToken,store_id:'1',favorite:'1',return:'dashboard.php'});
+    const savedJson=await student('favorites.php',{csrf_token:favoriteToken,store_id:'2',favorite:'1',return:'dashboard.php'},{headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const forged=await student('favorites.php',{csrf_token:'invalid',store_id:'1',favorite:'0'},{headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const outsider=await student('favorites.php',{csrf_token:favoriteToken,store_id:'999',favorite:'1',return:'https://example.invalid/'});
+    check(saved.status===303 && saved.location==='dashboard.php#campus-kitchens' && JSON.parse(savedJson.html).favorite===true
+      && JSON.parse(savedJson.html).count===2 && forged.status===403 && outsider.location==='favorites.php'
+      && JSON.stringify(await favoriteRows())==='[1,2]',
+      'Hearts save kitchens with or without JavaScript, reject invalid tokens and unknown kitchens, and only redirect within the app');
+    const savedHome=(await student('dashboard.php')).html;
+    const listed=await student('favorites.php');
+    check(heart(savedHome,1).includes('aria-pressed="true"') && heart(savedHome,1).includes('aria-label="Remove Fixture Kitchen from favourites"')
+      && listed.html.includes('<strong>Fixture Kitchen</strong>') && listed.html.includes('<strong>Other Kitchen</strong>')
+      && listed.html.includes('cb-favorites-empty" hidden'),'Saved kitchens show filled hearts on Home and are listed on the Favourites page');
+    await student('favorites.php',{csrf_token:favoriteToken,store_id:'2',favorite:'0',return:'favorites.php'});
+    await student('favorites.php',{csrf_token:favoriteToken,store_id:'1',favorite:'0',return:'favorites.php'});
+    check((await favoriteRows()).length===0 && (await anon('favorites.php')).status===302,
+      'Tapping a filled heart removes the kitchen, and signed-out visitors cannot use favourites');
+    const searched=await student('menu.php?store=1&q=Fixture%20Meal');
+    check(searched.html.includes('id="searchFood"') && searched.html.includes('value="Fixture Meal"'),
+      'Food search results open the kitchen menu with the search already filled in');
+  }
   const cancelled=await student('orders.php',{csrf_token:token(orders.html),action:'cancel_order',order_id:String(order.order_id),cancel_reason:'Fixture cancellation'});
   assert.equal(cancelled.status,200);
   assert.equal(Number((await db.query('SELECT status_id FROM public.orders WHERE order_id=$1',[order.order_id])).rows[0].status_id),5);
@@ -566,6 +610,36 @@ try {
   check(true,'Admin dashboard, account management, stores and profile render');
   check((await admin('admin_stores.php?store=1')).html.includes('Cup of Juice</h3><p>Beverages &middot; Unavailable'),
     'Admin food labels use the same daily expiry for drinks as staff and students');
+  const defaultCategories=await readFile(path.join(root,'supabase/migrations/20261102090000_default_categories.sql'),'utf8');
+  await db.exec(defaultCategories); await db.exec(defaultCategories);
+  const categoryCounts=Object.fromEntries((await db.query('SELECT lower(category_name) AS name,COUNT(*)::int AS n FROM public.categories GROUP BY 1')).rows.map(row=>[row.name,row.n]));
+  check(['rice meals','snacks','beverages','desserts'].every(name=>categoryCounts[name]===1),
+    'Default categories migration adds missing categories once and skips existing names case-insensitively');
+  const categoriesPage=await admin('admin_categories.php');
+  check(categoriesPage.status===200 && categoriesPage.html.includes('href="admin_categories.php" class="active"')
+    && categoriesPage.html.includes('value="Desserts"'),'Admin Categories page renders from the admin navigation');
+  check((await student('admin_categories.php')).status===302 && (await staff('admin_categories.php')).status===302,
+    'Students and staff cannot open category management');
+  const categoryCount=async name=>Number((await db.query('SELECT COUNT(*) AS n FROM public.categories WHERE lower(category_name)=lower($1)',[name])).rows[0].n);
+  await admin('admin_categories.php',{csrf_token:'invalid',action:'add_category',category_name:'Forged',description:''});
+  await admin('admin_categories.php',{csrf_token:token(categoriesPage.html),action:'add_category',category_name:'   ',description:''});
+  check(await categoryCount('Forged')===0 && await categoryCount('')===0,'Category changes require a valid CSRF token and a name');
+  const added=await admin('admin_categories.php',{csrf_token:token(categoriesPage.html),action:'add_category',category_name:'Noodles',description:''});
+  const duplicate=await admin('admin_categories.php',{csrf_token:token(categoriesPage.html),action:'add_category',category_name:' noodles ',description:''});
+  check(added.status===302 && await categoryCount('Noodles')===1 && duplicate.html.includes('A category with that name already exists.')
+    && (await staff('staff_menu.php?edit=0')).html.includes('>Noodles</option>'),
+    'Admins add categories that staff can choose immediately, without case-insensitive duplicates');
+  const noodles=(await db.query("SELECT category_id FROM public.categories WHERE category_name='Noodles'")).rows[0].category_id;
+  await admin('admin_categories.php',{csrf_token:token(categoriesPage.html),action:'update_category',category_id:String(noodles),category_name:'Pasta & Noodles',description:'<b>Hot</b>'});
+  const renamed=await admin('admin_categories.php');
+  check(renamed.html.includes('value="Pasta &amp; Noodles"') && renamed.html.includes('value="&lt;b&gt;Hot&lt;/b&gt;"')
+    && (await db.query('SELECT category_name FROM public.categories WHERE category_id=$1',[noodles])).rows[0].category_name==='Pasta & Noodles',
+    'Admins rename categories and the page escapes category text');
+  const riceMeals=(await db.query("SELECT category_id FROM public.categories WHERE category_name='Rice Meals'")).rows[0].category_id;
+  const inUse=await admin('admin_categories.php',{csrf_token:token(categoriesPage.html),action:'delete_category',category_id:String(riceMeals)});
+  await admin('admin_categories.php',{csrf_token:token(categoriesPage.html),action:'delete_category',category_id:String(noodles)});
+  check(inUse.html.includes('can&#039;t be deleted') && await categoryCount('Rice Meals')===1 && await categoryCount('Pasta & Noodles')===0,
+    'Categories used by foods cannot be deleted, while unused categories can');
   const adminUsers=await admin('admin_users.php');
   await admin('admin_users.php',{csrf_token:token(adminUsers.html),action:'create_staff',id_number:'FIXTURE-NEWSTAFF',first_name:'New',last_name:'Fixture',email:'newstaff@example.invalid',password:'Fixture-Only-Password9!',confirm_password:'Fixture-Only-Password9!',contact_number:''});
   check((await db.query("SELECT s.store_id FROM public.stores s JOIN public.users u ON u.user_id=s.staff_user_id WHERE u.email='newstaff@example.invalid'")).rows.length===1,'Creating staff also creates its own store using RETURNING');
@@ -801,8 +875,116 @@ try {
     && (await separateCarts('profile.php')).html.includes('switch@example.invalid'),
     'A newly created account cannot inherit another signed-in account\'s cart or identity');
   const profile=await student('profile.php');
-  await student('profile.php',{csrf_token:token(profile.html),first_name:'Updated',last_name:'STUDENT',email:'student@example.invalid',contact_number:'',grade_section:'',current_password:password});
+  const studentNavigation=profile.html.match(/<nav class="navbar cb-site-navbar cb-student-navbar"[\s\S]*?<\/nav>/)?.[0] || '';
+  check(profile.html.includes('href="student-mobile-nav.css?v='),
+    'Student pages load the mobile tab bar styles');
+  check((studentNavigation.match(/class="cb-site-nav-icon"/g) || []).length===5
+    && /href="profile.php" class="active" aria-current="page"[\s\S]*?<span class="cb-site-nav-prefix">My <\/span>Profile/.test(studentNavigation)
+    && !studentNavigation.includes('cb-site-mobile-logout'),
+    'Student navigation has five tab icons, short mobile labels with an active Profile tab, and no separate phone header Logout');
+  check(profile.html.includes('<div class="profile-initial" aria-hidden="true">FS</div>') && profile.html.includes('Student &middot; ID FIXTURE-STUDENT')
+    && profile.html.includes('<dt>Email</dt><dd>student@example.invalid</dd>') && profile.html.includes('<span class="profile-empty">Not added</span>')
+    && profile.html.includes('href="profile.php?edit=details#account-details"') && profile.html.includes('href="profile.php?edit=password#change-password"')
+    && !profile.html.includes('id="student-profile-form"') && !profile.html.includes('name="current_password"'),
+    'Student profile opens as a compact read-only summary with Edit details and Change password actions');
+  {
+    // A real 8x8 PNG, so the server's image checks accept it.
+    const chunk=(type,data)=>{const length=Buffer.alloc(4);length.writeUInt32BE(data.length);const body=Buffer.concat([Buffer.from(type),data]);const crc=Buffer.alloc(4);crc.writeUInt32BE(zlibCrc32(body));return Buffer.concat([length,body,crc]);};
+    const header=Buffer.alloc(13);header.writeUInt32BE(8,0);header.writeUInt32BE(8,4);header[8]=8;header[9]=2;
+    const pixels=Buffer.concat(Array.from({length:8},()=>Buffer.concat([Buffer.from([0]),Buffer.alloc(24,200)])));
+    const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(pixels)),chunk('IEND',Buffer.alloc(0))]);
+    const avatar=async()=>(await db.query('SELECT avatar_path FROM public.users WHERE user_id=4')).rows[0].avatar_path;
+    const editPage=await student('profile.php?edit=details');
+    const editForm=editPage.html.match(/<form method="POST" action="profile.php" id="student-profile-form"[\s\S]*?<\/form>/)?.[0] || '';
+    check(!profile.html.includes('profile-photo-form') && !profile.html.includes('Add photo') && !profile.html.includes('name="profile_photo"')
+      && editForm.includes('enctype="multipart/form-data"') && editForm.includes('class="profile-photo-edit"') && editForm.includes('Add profile photo')
+      && editForm.includes('name="profile_photo"') && editForm.includes('Kitchen staff see this photo on your orders'),
+      'The profile photo is added from Edit details, not from a separate button on the profile card');
+    const saveDetails=async({csrf,current=password,file,remove}={})=>{
+      const form=new FormData();
+      form.append('csrf_token',csrf ?? token((await student('profile.php?edit=details')).html.match(/id="student-profile-form"[\s\S]*?<\/form>/)[0]));
+      for(const [name,value] of Object.entries({first_name:'Fixture',last_name:'STUDENT',email:'student@example.invalid',contact_number:'',grade_section:'',current_password:current})) form.append(name,value);
+      if(remove) form.append('remove_photo','1');
+      if(file) form.append('profile_photo',new Blob([file],{type:'image/png'}),'me.png');
+      const response=await fetch(base+'/profile.php',{method:'POST',body:form,redirect:'manual',headers:{Cookie:profile.sessionCookie}});
+      return {status:response.status,html:await response.text()};
+    };
+    const forgedPhoto=await saveDetails({csrf:'invalid',file:png});
+    const fakePhoto=await saveDetails({file:Buffer.from('not an image')});
+    const wrongPassword=await saveDetails({current:'not-the-password',file:png});
+    check(forgedPhoto.html.includes('Invalid request') && fakePhoto.html.includes('Only actual JPEG, PNG, and WebP images are allowed.')
+      && fakePhoto.html.includes('id="student-profile-form"') && wrongPassword.html.includes('Your current password is incorrect.') && await avatar()===null,
+      'A new profile photo is only saved with a valid token, a real image and the current password');
+    const uploaded=await saveDetails({file:png});
+    const savedPath=await avatar();
+    const ownPage=await student('profile.php');
+    const ownPhoto=await fetch(base+'/profile_photo.php',{headers:{Cookie:profile.sessionCookie}});
+    check(uploaded.status===302 && /^uploads\/avatars\/[a-f0-9]{32}\.png$/.test(savedPath)
+      && (await readFile(path.join(storageDir,savedPath))).equals(png)
+      && ownPage.html.includes('Your profile has been updated.') && ownPage.html.includes('class="profile-initial profile-photo" src="profile_photo.php?v=')
+      && (await student('profile.php?edit=details')).html.includes('Change profile photo') && (await student('profile.php?edit=details')).html.includes('name="remove_photo"')
+      && ownPhoto.status===200 && ownPhoto.headers.get('content-type')==='image/png' && Buffer.from(await ownPhoto.arrayBuffer()).equals(png),
+      'A saved profile photo is stored privately and shown on the student\'s own profile');
+    const photoOrder=(await db.query('SELECT order_id FROM public.orders WHERE student_id=4 AND store_id=1 ORDER BY order_id LIMIT 1')).rows[0].order_id;
+    const staffOrders=(await staff('staff_dashboard.php')).html;
+    const staffPhotoUrl=staffOrders.match(new RegExp(`data-customer-photo="(profile_photo\\.php\\?order_id=${photoOrder}&amp;v=[a-f0-9]{10})"`))?.[1]?.replace('&amp;','&');
+    const staffPhoto=staffPhotoUrl ? await fetch(base+'/'+staffPhotoUrl,{headers:{Cookie:(await staff('staff_dashboard.php')).sessionCookie}}) : null;
+    const otherKitchen=await fetch(base+'/profile_photo.php?order_id='+photoOrder,{headers:{Cookie:(await other('staff_dashboard.php')).sessionCookie}});
+    const signedOut=await fetch(base+'/profile_photo.php?order_id='+photoOrder);
+    check(staffOrders.includes('id="customer-photo-dialog"') && staffOrders.includes('aria-label="Show a larger photo of')
+      && staffPhoto?.status===200 && Buffer.from(await staffPhoto.arrayBuffer()).equals(png)
+      && otherKitchen.status===404 && signedOut.status===404 && !(await fetch(base+'/'+savedPath)).ok,
+      'Staff see the customer\'s photo on orders from their own kitchen only; other kitchens, visitors and direct file links get nothing');
+    await saveDetails({remove:true});
+    let fileGone=false; try { await readFile(path.join(storageDir,savedPath)); } catch { fileGone=true; }
+    check(await avatar()===null && fileGone && (await staff('staff_dashboard.php')).html.includes('class="cb-customer-photo cb-customer-no-photo"'),
+      'Removing the photo deletes the file, and staff then see the customer\'s initials with "No photo"');
+  }
+  check(profile.html.includes('<a class="btn profile-logout-button" href="logout.php" data-logout-confirm>Log out</a>')
+    && /<dialog class="profile-logout-dialog" id="logout-dialog"[\s\S]*?data-logout-cancel>No<\/button>[\s\S]*?href="logout.php">Yes, log out<\/a>/.test(profile.html),
+    'Profile has a Log out button that asks for Yes/No confirmation before signing out');
+  const profileEditor=await student('profile.php?edit=details');
+  check(profileEditor.html.includes('id="student-profile-form"') && profileEditor.html.includes('href="profile.php#account-details">Cancel</a>')
+    && !profileEditor.html.includes('href="profile.php?edit=details#account-details"'),
+    'Edit details shows the profile form with a Cancel link');
+  const detailsToken=html=>token(html.match(/<form method="POST" action="profile.php" id="student-profile-form"[\s\S]*?<\/form>/)[0]);
+  await student('profile.php',{csrf_token:detailsToken(profileEditor.html),first_name:'Updated',last_name:'STUDENT',email:'student@example.invalid',contact_number:'',grade_section:'',current_password:password});
   check((await db.query("SELECT first_name FROM public.users WHERE email='student@example.invalid'")).rows[0].first_name==='Updated','Profile saving verifies the password and updates the correct account');
+  const failedDetails=await student('profile.php',{csrf_token:detailsToken((await student('profile.php?edit=details')).html),first_name:'',last_name:'STUDENT',email:'student@example.invalid',contact_number:'',grade_section:'',current_password:password});
+  check(failedDetails.html.includes('Enter your first and last name.') && failedDetails.html.includes('id="student-profile-form"'),
+    'A failed profile save keeps the edit form open with the error');
+  {
+  const studentHash=async()=>(await db.query("SELECT password_hash FROM public.users WHERE email='student@example.invalid'")).rows[0].password_hash;
+  const studentElsewhere=client(); await signin(studentElsewhere,'student@example.invalid');
+  const passwordPage=await student('profile.php?edit=password');
+  const studentPasswordForm=passwordPage.html.match(/<form\b[^>]*class="profile-password-form"[\s\S]*?<\/form>/)?.[0] || '';
+  check(studentPasswordForm.includes('value="change_password"') && studentPasswordForm.includes('name="new_password"') && studentPasswordForm.includes('name="confirm_password"'),
+    'Students can open a current/new/confirm password form from their profile');
+  const beforeStudentChange=await studentHash();
+  const newStudentPassword='Student-Fixture-Changed1';
+  const studentChange={action:'change_password',csrf_token:token(studentPasswordForm),current_password:password,new_password:newStudentPassword,confirm_password:newStudentPassword};
+  const wrongCurrent=await student('profile.php',{...studentChange,current_password:'not-the-password'});
+  const studentMismatch=await student('profile.php',{...studentChange,confirm_password:'different-password'});
+  const forgedStudent=await student('profile.php',{...studentChange,csrf_token:'invalid'});
+  check(wrongCurrent.html.includes('Your current password is incorrect.') && studentMismatch.html.includes('The new passwords do not match.')
+    && forgedStudent.html.includes('Invalid request.') && await studentHash()===beforeStudentChange,
+    'Wrong current passwords, mismatches and invalid CSRF cannot change a student password');
+  const changed=await student('profile.php',studentChange);
+  const afterChange=await student('profile.php');
+  check(changed.status===302 && changed.location==='profile.php#change-password' && await studentHash()!==beforeStudentChange
+    && afterChange.status===200 && afterChange.html.includes('other devices have been signed out')
+    && (await studentElsewhere('profile.php')).status===302,
+    'A student password change keeps this session signed in and signs out other sessions');
+  const oldLogin=client(); const oldLoginPage=await oldLogin('login.php');
+  const rejectedOld=await oldLogin('login.php',{email:'student@example.invalid',password,csrf_token:token(oldLoginPage.html)});
+  const newLogin=client(); const newLoginPage=await newLogin('login.php');
+  const acceptedNew=await newLogin('login.php',{email:'student@example.invalid',password:newStudentPassword,csrf_token:token(newLoginPage.html)});
+  check(rejectedOld.status===200 && acceptedNew.status===302 && acceptedNew.location==='dashboard.php',
+    'The old student password stops working and the new one signs in');
+  const restorePage=await student('profile.php?edit=password');
+  await student('profile.php',{action:'change_password',csrf_token:token(restorePage.html.match(/<form\b[^>]*class="profile-password-form"[\s\S]*?<\/form>/)[0]),current_password:newStudentPassword,new_password:password,confirm_password:password});
+  check((await student('profile.php')).status===200 && await studentHash()!==beforeStudentChange,'Students can change their password again, restoring the fixture password');
+  }
   await db.exec('UPDATE public.users SET is_active=0 WHERE user_id=3');
   assert.equal((await other('staff_dashboard.php')).status,302);
   check(true,'A deactivated account is rejected on its next request');
@@ -912,4 +1094,5 @@ try {
   if(child && child.exitCode===null) { child.kill(); await new Promise(resolve=>{child.once('exit',resolve);setTimeout(resolve,3000).unref();}); }
   if(server) await server.stop();
   await db.close();
+  await rm(storageDir,{recursive:true,force:true});
 }
