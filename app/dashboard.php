@@ -106,9 +106,18 @@ $_SESSION["first_name"] = $user["first_name"];
 $_SESSION["last_name"] = $user["last_name"];
 $_SESSION["email"] = $user["email"];
 $_SESSION["role_name"] = $user["role_name"];
+// Create the favourites token before the session is released below.
+$favoritesToken = cbCsrf("favorites_csrf");
 
 // Rendering below only reads session data; let navigation proceed during live-menu queries.
 session_write_close();
+
+require_once __DIR__ . "/config/favorites.php";
+try {
+    $favoriteStoreIds = cbFavoriteStoreIds($pdo, (int) $user["user_id"]);
+} catch (PDOException $e) {
+    $favoriteStoreIds = [];
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -134,7 +143,6 @@ if (isset($_SESSION["cart"]) && is_array($_SESSION["cart"])) {
 */
 $stores = cbVisibleStores($pdo);
 $menuItems = [];
-$recentOrders = [];
 
 /*
 |--------------------------------------------------------------------------
@@ -195,46 +203,30 @@ try {
 
 /*
 |--------------------------------------------------------------------------
-| RECENT ORDERS
+| CURRENT ORDER
 |--------------------------------------------------------------------------
+|
+| The newest pending, preparing or ready order is shown in a small card
+| above the tab bar, linking to My Orders.
+|
 */
+$activeOrder = null;
+$activeOrderCount = 0;
 try {
-
-    $recentStmt = $pdo->prepare("
-        SELECT
-            o.order_id,
-            o.order_number,
-            o.order_datetime,
-            o.total_amount,
-            o.status_id,
-            os.status_name,
-            p.method AS payment_method,
-            p.payment_status
-
+    $activeStmt = $pdo->prepare("
+        SELECT o.order_id, o.order_number, o.total_amount, o.status_id, s.store_name,
+            COUNT(*) OVER () AS active_count
         FROM orders o
-
-        INNER JOIN order_statuses os
-            ON o.status_id = os.status_id
-
-        LEFT JOIN payments p
-            ON o.order_id = p.order_id
-
-        WHERE o.student_id = ?
-
+        INNER JOIN stores s ON s.store_id = o.store_id
+        WHERE o.student_id = ? AND o.status_id IN (1, 2, 3)
         ORDER BY o.order_datetime DESC
-
-        LIMIT 5
+        LIMIT 1
     ");
-
-    $recentStmt->execute([
-        $user["user_id"]
-    ]);
-
-    $recentOrders = $recentStmt->fetchAll();
-
+    $activeStmt->execute([$user["user_id"]]);
+    $activeOrder = $activeStmt->fetch() ?: null;
+    $activeOrderCount = $activeOrder ? (int) $activeOrder["active_count"] : 0;
 } catch (PDOException $e) {
-
-    $recentOrders = [];
+    $activeOrder = null;
 }
 
 /*
@@ -901,16 +893,17 @@ function getStatusClass($status)
 
     </style>
 
-    <link rel="stylesheet" href="assets/order-tracking/tracking.css?v=1">
-    <?php if ($recentOrders): ?><script src="assets/order-tracking/tracking.js?v=1" defer></script><?php endif; ?>
     <link rel="stylesheet" href="dashboard-commerce.css?v=1">
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="student-pages.css?v=1">
 <link rel="stylesheet" href="stores.css?v=<?= (int) filemtime(__DIR__ . '/stores.css') ?>">
     <link rel="stylesheet" href="dashboard-food-preview.css?v=<?= (int) filemtime(__DIR__ . '/dashboard-food-preview.css') ?>">
     <link rel="stylesheet" href="store-switch.css?v=<?= (int) filemtime(__DIR__ . '/store-switch.css') ?>">
+    <link rel="stylesheet" href="dashboard-home.css?v=<?= (int) filemtime(__DIR__ . '/dashboard-home.css') ?>">
     <script src="dashboard-store-tabs.js?v=<?= (int) filemtime(__DIR__ . '/dashboard-store-tabs.js') ?>" defer></script>
     <script src="dashboard-sync.js?v=<?= (int) filemtime(__DIR__ . '/dashboard-sync.js') ?>" defer></script>
+    <link rel="stylesheet" href="favorites.css?v=<?= (int) filemtime(__DIR__ . '/favorites.css') ?>">
+    <script src="home-favorites.js?v=<?= (int) filemtime(__DIR__ . '/home-favorites.js') ?>" defer></script>
 </head>
 
 <body class="cb-commerce cb-student" data-dashboard-user="<?= (int) $user['user_id'] ?>">
@@ -926,6 +919,14 @@ function getStatusClass($status)
          DASHBOARD CONTENT
     ============================================================= -->
 
+    <div class="cb-home-search-bar"><div class="cb-home-search-inner">
+        <form class="cb-home-search" role="search" action="menu.php" method="get">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input type="search" name="q" id="home-search" placeholder="Search kitchens or food" autocomplete="off" aria-label="Search kitchens or food" aria-controls="home-search-results" aria-expanded="false">
+        </form>
+        <a class="cb-round-button cb-favorites-link" href="favorites.php" aria-label="Favourites"><?= cbFavoriteHeartIcon() ?></a>
+        <div class="cb-search-results" id="home-search-results" hidden></div>
+    </div></div>
     <main class="dashboard-container">
 
     <?php
@@ -1003,10 +1004,14 @@ function getStatusClass($status)
                 <p>Pick from several kitchens. Each store has its own cart, checkout, and pickup.</p>
                 <div class="cb-store-grid cb-kitchen-grid">
                 <?php foreach ($stores as $store): ?>
+                    <div class="cb-kitchen-card" data-kitchen-name="<?= cbEscape($store['store_name']) ?>" data-kitchen-href="menu.php?store=<?= (int) $store['store_id'] ?>">
                     <a class="cb-store-tile cb-kitchen-tile" href="menu.php?store=<?= (int) $store['store_id'] ?>">
-                        <?php if (isset($storePhotos[$store['store_id']])): ?><img class="cb-kitchen-photo" src="<?= cbEscape($storePhotos[$store['store_id']]) ?>" alt="" loading="lazy" width="160" height="160"><?php endif; ?>
-                        <div><span class="cb-store-kicker">CAMPUS STORE</span><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') ?></p><p class="cb-store-hours"><?= cbEscape(cbStoreStatusLabel($store)) ?></p><span class="cb-kitchen-link">Browse menu &rarr;</span></div>
+                        <?php if (isset($storePhotos[$store['store_id']])): ?><img class="cb-kitchen-photo" src="<?= cbEscape($storePhotos[$store['store_id']]) ?>" alt="" loading="lazy" width="640" height="300">
+                        <?php else: ?><span class="cb-kitchen-photo cb-kitchen-placeholder" aria-hidden="true"><?= cbEscape(strtoupper(substr($store['store_name'], 0, 1))) ?></span><?php endif; ?>
+                        <div class="cb-kitchen-body"><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['description'] ?: 'Fresh picks from your campus kitchen.') ?></p><p class="cb-kitchen-meta"><?= cbStoreStatusPill($store) ?></p><span class="cb-kitchen-link">Browse menu &rarr;</span></div>
                     </a>
+                    <?= cbFavoriteButton($store, in_array((int) $store['store_id'], $favoriteStoreIds, true), $favoritesToken, 'dashboard.php') ?>
+                    </div>
                 <?php endforeach; ?>
                 <?php if (!$stores): ?><p>No stores are open right now.</p><?php endif; ?>
                 </div>
@@ -1036,19 +1041,12 @@ function getStatusClass($status)
 
                 <?php foreach ($menuItems as $item): ?>
 
-                    <a class="food-card cb-food-display" data-food-id="<?= (int) $item['item_id'] ?>" data-store="<?= (int) $item['store_id'] ?>" href="menu.php?store=<?= (int) $item['store_id'] ?>" aria-label="<?= cbEscape('View ' . $item['item_name'] . ' at ' . $item['store_name']) ?>">
+                    <a class="food-card cb-food-display" data-food-id="<?= (int) $item['item_id'] ?>" data-store="<?= (int) $item['store_id'] ?>" data-food-name="<?= cbEscape($item['item_name']) ?>" data-store-name="<?= cbEscape($item['store_name']) ?>" data-category="<?= cbEscape($item['category_name']) ?>" href="menu.php?store=<?= (int) $item['store_id'] ?>" aria-label="<?= cbEscape('View ' . $item['item_name'] . ' at ' . $item['store_name']) ?>">
 
                         <?php if ($photo = cbFoodPhotoUrl($item['image_path'])): ?>
                         <img class="cb-food-photo" src="<?= cbEscape($photo) ?>" alt="<?= cbEscape($item['item_name']) ?>" loading="lazy" width="640" height="400">
                         <?php else: ?>
-                        <div class="food-emoji">
-
-                            <?= getFoodEmoji(
-                                $item["category_name"]
-                            ) ?>
-
-                        </div>
-
+                        <div class="cb-food-placeholder" aria-hidden="true"><span><?= getFoodEmoji($item["category_name"]) ?></span></div>
                         <?php endif; ?>
                         <span class="cb-food-store"><?= cbEscape($item["store_name"]) ?></span>
                         <span class="food-category">
@@ -1067,14 +1065,9 @@ function getStatusClass($status)
 
                         </h3>
 
-                        <p class="food-description">
-
-                            <?= htmlspecialchars(
-                                $item["description"]
-                                ?: "Delicious food from CampusBite."
-                            ) ?>
-
-                        </p>
+                        <?php if (trim((string) $item["description"]) !== ""): ?>
+                        <p class="food-description"><?= htmlspecialchars($item["description"]) ?></p>
+                        <?php endif; ?>
 
                         <div class="food-bottom">
 
@@ -1124,198 +1117,28 @@ function getStatusClass($status)
 
 
         </div>
-        <?php
-        require_once __DIR__ . "/components/order-tracking.php";
-        campusBiteTracking($pdo, $recentOrders);
-        ?>
-
-        <!-- ========================================================
-             RECENT ORDERS
-        ========================================================= -->
-
-        <div class="section-heading">
-
-            <h2>
-                📋 Recent Orders
-            </h2>
-
-            <a href="orders.php">
-                View All →
-            </a>
-
-        </div>
-
-
-        <?php if (!empty($recentOrders)): ?>
-
-            <section class="recent-card">
-
-                <div class="recent-table-wrapper">
-
-                    <table class="recent-table">
-
-                        <thead>
-
-                            <tr>
-
-                                <th>
-                                    Order
-                                </th>
-
-                                <th>
-                                    Date
-                                </th>
-
-                                <th>
-                                    Total
-                                </th>
-
-                                <th>
-                                    Payment
-                                </th>
-
-                                <th>
-                                    Status
-                                </th>
-
-                            </tr>
-
-                        </thead>
-
-                        <tbody>
-
-                            <?php foreach (
-                                $recentOrders
-                                as $order
-                            ): ?>
-
-                                <tr>
-
-                                    <td>
-
-                                        <strong>
-
-                                            <?= htmlspecialchars(
-                                                $order[
-                                                    "order_number"
-                                                ]
-                                            ) ?>
-
-                                        </strong>
-
-                                    </td>
-
-
-                                    <td>
-
-                                        <?= date(
-                                            "M d, Y h:i A",
-                                            strtotime(
-                                                $order[
-                                                    "order_datetime"
-                                                ]
-                                            )
-                                        ) ?>
-
-                                    </td>
-
-
-                                    <td class="order-total">
-
-                                        ₱<?= number_format(
-                                            (float) $order[
-                                                "total_amount"
-                                            ],
-                                            2
-                                        ) ?>
-
-                                    </td>
-
-
-                                    <td>
-
-                                        <strong>
-
-                                            <?= htmlspecialchars(
-                                                $order[
-                                                    "payment_method"
-                                                ] ?? "—"
-                                            ) ?>
-
-                                        </strong>
-
-                                        <div class="payment-text">
-
-                                            <?= htmlspecialchars(
-                                                $order[
-                                                    "payment_status"
-                                                ] ?? "—"
-                                            ) ?>
-
-                                        </div>
-
-                                    </td>
-
-
-                                    <td>
-
-                                        <span
-                                            class="
-                                                status-badge
-                                                <?= getStatusClass(
-                                                    $order[
-                                                        "status_name"
-                                                    ]
-                                                ) ?>
-                                            "
-                                        >
-
-                                            <?= htmlspecialchars(
-                                                $order[
-                                                    "status_name"
-                                                ]
-                                            ) ?>
-
-                                        </span>
-
-                                    </td>
-
-                                </tr>
-
-                            <?php endforeach; ?>
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </section>
-
-        <?php else: ?>
-
-            <div class="empty-box">
-
-                <h3>
-                    📋 No orders yet
-                </h3>
-
-                <p>
-                    Your recent orders will appear here.
-                </p>
-
-                <a
-                    href="menu.php"
-                    class="btn-campus btn-orange"
-                >
-                    Explore menus
-                </a>
-
-            </div>
-
-        <?php endif; ?>
-
     </main>
+        <!-- ========================================================
+             CURRENT ORDER CARD (outside main: its entrance animation would anchor fixed elements to it)
+        ========================================================= -->
+        <div data-dashboard-live="order-card">
+        <?php if ($activeOrder):
+            $orderStatus = (int) $activeOrder["status_id"];
+            $orderTitles = [1 => "Waiting for the kitchen", 2 => "Your food is being prepared", 3 => "Ready for pickup!"];
+            $orderIcons = [1 => "⏳", 2 => "🍳", 3 => "✅"];
+        ?>
+        <aside class="cb-order-card" data-status="<?= $orderStatus ?>" data-order-key="<?= (int) $activeOrder["order_id"] ?>-<?= $orderStatus ?>" aria-label="Current order">
+            <a class="cb-order-card-link" href="orders.php">
+                <span class="cb-order-card-icon" aria-hidden="true"><?= $orderIcons[$orderStatus] ?></span>
+                <span class="cb-order-card-text">
+                    <strong><?= $orderTitles[$orderStatus] ?></strong>
+                    <span><?= cbEscape($activeOrder["order_number"]) ?> &middot; <?= cbEscape($activeOrder["store_name"]) ?> &middot; ₱<?= number_format((float) $activeOrder["total_amount"], 2) ?><?php if ($activeOrderCount > 1): ?> &middot; +<?= $activeOrderCount - 1 ?> more<?php endif; ?></span>
+                </span>
+            </a>
+            <button type="button" class="cb-order-card-close" aria-label="Hide order update"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </aside>
+        <?php endif; ?>
+        </div>
 
 </body>
 

@@ -5,6 +5,7 @@ $adminNavigationLinks = [
     'admin_dashboard.php' => 'Dashboard',
     'admin_users.php' => 'Users',
     'admin_stores.php' => 'Stores',
+    'admin_categories.php' => 'Categories',
     'admin_profile.php' => 'My Profile',
     'logout.php' => 'Logout',
 ];

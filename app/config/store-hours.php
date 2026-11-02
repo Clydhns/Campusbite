@@ -12,14 +12,20 @@ function cbStoreAcceptingOrders(array $store, ?DateTimeImmutable $now = null): b
     return $opens < $closes ? $time >= $opens && $time < $closes
         : ($opens !== $closes && ($time >= $opens || $time < $closes));
 }
-function cbStoreHoursLabel(array $store): string {
+function cbStoreHoursLabel(array $store, bool $withZone = true): string {
     $zone = new DateTimeZone('Asia/Manila');
     $opens = new DateTimeImmutable($store['opens_at'] ?? '06:00:00', $zone);
     $closes = new DateTimeImmutable($store['closes_at'] ?? '18:00:00', $zone);
-    return $opens->format('g:i A') . ' - ' . $closes->format('g:i A') . ' daily (Philippine time)';
+    return $opens->format('g:i A') . ' - ' . $closes->format('g:i A') . ' daily' . ($withZone ? ' (Philippine time)' : '');
 }
 function cbStoreStatusLabel(array $store): string {
     return (cbStoreAcceptingOrders($store) ? 'Open now' : 'Closed now') . ' | ' . cbStoreHoursLabel($store);
+}
+// Student kitchen cards: a green "Open now" or red "Closed" pill, then the daily hours.
+function cbStoreStatusPill(array $store): string {
+    $open = cbStoreAcceptingOrders($store);
+    return '<span class="cb-open-pill" data-open="' . ($open ? 'true' : 'false') . '">' . ($open ? 'Open now' : 'Closed') . '</span>'
+        . '<span class="cb-kitchen-hours">' . htmlspecialchars(cbStoreHoursLabel($store, false), ENT_QUOTES, 'UTF-8') . '</span>';
 }
 function cbValidateStoreHours($opens, $closes): array {
     foreach ([$opens, $closes] as $value) {

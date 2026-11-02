@@ -1,0 +1,82 @@
+/* Home search bar, heart buttons and the Favourites page. */
+.cb-round-button { display:inline-grid; place-items:center; flex-shrink:0; width:48px; height:48px; border:1px solid #f1d5bf; border-radius:50%; background:#fff; color:#a61f2e; text-decoration:none; box-shadow:0 4px 14px #7e45200d; }
+.cb-round-button:hover { background:#fff0e4; }
+.cb-round-button:focus-visible,.cb-heart-button:focus-visible,.cb-search-result:focus-visible { outline:3px solid #a61f2e; outline-offset:2px; }
+.cb-round-button svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+/* Sticky, full-width search bar at the top of Home; the inner row lines up with the page content. */
+.cb-home-search-bar { position:sticky; top:0; z-index:50; background:#fff7ef; box-shadow:0 6px 12px -10px #7e452040; }
+.cb-home-search-inner { position:relative; display:flex; align-items:center; gap:10px; max-width:1240px; margin:0 auto; padding:10px 32px; }
+@media(max-width:640px) { .cb-home-search-inner { padding:10px 16px; } }
+.cb-home-search { position:relative; flex:1; min-width:0; margin:0; }
+.cb-home-search svg { position:absolute; top:50%; left:16px; width:20px; height:20px; transform:translateY(-50%); fill:none; stroke:#8b6a55; stroke-width:2; stroke-linecap:round; pointer-events:none; }
+.cb-home-search input { width:100%; min-height:48px; padding:0 16px 0 46px; border:1px solid #f1d5bf; border-radius:999px; background:#fff; color:#3b2a20; font:inherit; font-size:16px; box-shadow:0 4px 14px #7e45200d; }
+.cb-home-search input:focus { outline:none; border-color:#e63946; box-shadow:0 0 0 3px #e6394622; }
+.cb-search-results { position:absolute; top:calc(100% - 2px); left:32px; right:32px; max-height:min(60vh,420px); overflow:auto; padding:8px; border:1px solid #f1d5bf; border-radius:18px; background:#fff; box-shadow:0 18px 40px #3b2a2024; }
+.cb-search-results[hidden] { display:none; }
+.cb-search-group + .cb-search-group { margin-top:6px; padding-top:6px; border-top:1px solid #f6e3d4; }
+.cb-search-group-title { margin:6px 10px 4px; color:#8b4e20; font-size:11px; font-weight:900; letter-spacing:1px; text-transform:uppercase; }
+.cb-search-result { display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:12px; color:#3b2a20; text-decoration:none; }
+.cb-search-result:hover,.cb-search-result:focus { background:#fff3e8; }
+.cb-search-result strong { font-size:14px; }
+.cb-search-result span { color:#796554; font-size:12px; }
+.cb-search-empty { margin:0; padding:14px 12px; color:#796554; font-size:14px; }
+
+/* Heart toggle in a circle. */
+.cb-favorite-form { margin:0; }
+.cb-heart-button { display:grid; place-items:center; width:42px; height:42px; padding:0; border:1px solid #f1d5bf; border-radius:50%; background:#fff; color:#a61f2e; cursor:pointer; box-shadow:0 4px 12px #7e452014; transition:transform .15s; }
+.cb-heart-button svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; }
+.cb-heart-button[aria-pressed="true"] { border-color:#f4c3bd; color:#e63946; }
+.cb-heart-button[aria-pressed="true"] svg { fill:currentColor; }
+.cb-heart-button:active { transform:scale(.9); }
+.cb-heart-button:disabled { opacity:.6; cursor:wait; }
+
+/* Home kitchen cards: a rounded landscape photo on top, details underneath, heart over the photo. */
+.cb-kitchen-card { position:relative; min-width:0; }
+body[data-dashboard-user] .cb-kitchen-card > .cb-kitchen-tile { display:flex; flex-direction:column; align-items:stretch; gap:0; height:100%; padding:12px; }
+body[data-dashboard-user] .cb-kitchen-card .cb-kitchen-photo { display:block; width:100%; height:clamp(130px,38vw,170px); border-radius:14px; object-fit:cover; background:#fff0df; }
+.cb-kitchen-placeholder { display:grid !important; place-items:center; background:linear-gradient(135deg,#fff8f0,#ffd9b8) !important; color:#e63946; font-size:44px; font-weight:900; }
+.cb-kitchen-body { display:flex; flex-direction:column; flex:1; min-width:0; padding:14px 6px 4px; }
+body[data-dashboard-user] .cb-kitchen-body h3 { margin:0 0 4px; font-size:19px; }
+body[data-dashboard-user] .cb-kitchen-body p { margin:0 0 10px; }
+.cb-kitchen-body .cb-kitchen-link { margin-top:auto; }
+.cb-kitchen-card > .cb-favorite-form { position:absolute; top:22px; right:22px; }
+
+/* Open / closed pill with the daily hours beside it. */
+.cb-kitchen-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.cb-open-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:900; line-height:1.4; white-space:nowrap; }
+.cb-open-pill::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.cb-open-pill[data-open="true"] { background:#e5f5ea; color:#1f7a3a; }
+.cb-open-pill[data-open="false"] { background:#fde8e8; color:#c0262d; }
+.cb-kitchen-hours { color:#796554; font-size:12px; font-weight:700; }
+
+/* Favourites page. */
+.cb-favorites-page { padding-top:12px; padding-bottom:48px; }
+.cb-favorites-head { display:flex; align-items:center; gap:14px; margin:8px 0 22px; }
+.cb-favorites-head h1 { margin:0; font-size:26px; font-weight:900; letter-spacing:-.6px; }
+.cb-favorites-status { margin:0; }
+.cb-favorites-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:22px; }
+.cb-favorite-item { position:relative; min-width:0; }
+.cb-favorite-link { display:block; color:#3b2a20; text-decoration:none; }
+/* A short landscape banner: about 150px tall on phones, never taller than 180px. */
+.cb-favorite-link img,.cb-favorite-placeholder { display:block; width:100%; height:clamp(130px,40vw,180px); max-height:180px; aspect-ratio:auto; border-radius:18px; object-fit:cover; background:#fff0df; }
+.cb-favorite-placeholder { display:grid; place-items:center; background:linear-gradient(135deg,#fff8f0,#ffd9b8); color:#e63946; font-size:48px; font-weight:900; }
+.cb-favorite-link:hover img,.cb-favorite-link:hover .cb-favorite-placeholder { filter:brightness(.97); }
+.cb-favorite-link:focus-visible { outline:3px solid #a61f2e; outline-offset:4px; border-radius:18px; }
+.cb-favorite-info { display:flex; flex-direction:column; gap:3px; padding:12px 2px 0; }
+.cb-favorite-info strong { font-size:17px; font-weight:900; overflow-wrap:anywhere; }
+.cb-favorite-info span { color:#796554; font-size:13px; line-height:1.5; }
+.cb-favorite-item > .cb-favorite-form { position:absolute; top:12px; right:12px; }
+.cb-favorite-item .cb-heart-button { width:38px; height:38px; }
+.cb-favorites-empty { max-width:360px; margin:48px auto; text-align:center; }
+.cb-favorites-empty[hidden] { display:none; }
+.cb-favorites-empty-icon { display:inline-grid; place-items:center; width:72px; height:72px; border-radius:50%; background:#ffe4e1; color:#e63946; }
+.cb-favorites-empty-icon svg { width:34px; height:34px; fill:currentColor; }
+.cb-favorites-empty h2 { margin:16px 0 6px; font-size:20px; }
+.cb-favorites-empty p { margin:0 0 20px; color:#796554; font-size:14px; }
+@media(max-width:640px) {
+  .cb-favorites-list { grid-template-columns:minmax(0,1fr); gap:20px; }
+  .cb-search-results { left:16px; right:16px; }
+  .cb-favorites-head h1 { font-size:22px; }
+}
+@media(prefers-reduced-motion:reduce) { .cb-heart-button { transition:none; } }
