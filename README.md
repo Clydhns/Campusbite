@@ -80,7 +80,7 @@ Verify a real recovery email after deploying: local integration tests use a
 disposable inbox, not Gmail. Gmail delivery/SMTP support on Vercel and browser
 visual checks are not established by those local tests.
 
-All roles use 30-minute, single-use reset links. Only token hashes are stored in
+All roles use 15-minute, single-use reset links. Only token hashes are stored in
 the reset table; the clean reset form uses a restricted token kept server-side
 in the private PHP session. Requesting a link does not change the password.
 Links become invalid if the account is deactivated or its email/password changes.

@@ -1113,6 +1113,10 @@ try {
   const mail=(await inbox())[0];
   const resetToken=mail.text.match(/reset_password\.php\?token=([a-f0-9]{64})/)[1];
   const resets=(await db.query('SELECT * FROM campusbite_private.password_resets WHERE user_id=4')).rows;
+  const lifetime=(await db.query("SELECT EXTRACT(EPOCH FROM (expires_at-clock_timestamp())) AS seconds FROM campusbite_private.password_resets WHERE user_id=4")).rows[0].seconds;
+  check(Number(lifetime)>840 && Number(lifetime)<=900 && mail.text.includes('expires in 15 minutes')
+    && known.html.includes('expires in 15 minutes'),
+    'New reset links expire after fifteen minutes and the email and confirmation agree');
   check(resets.length===1 && resets[0].token_hash!==resetToken && !JSON.stringify(resets).includes(resetToken)
     && !known.html.includes(resetToken) && mail.text.includes('https://campusbite-orpin.vercel.app/reset_password.php?token=')
     && (await db.query('SELECT password_hash FROM users WHERE user_id=4')).rows[0].password_hash===beforeRecoveryHash,
@@ -1127,7 +1131,7 @@ try {
   assert.equal((await resetClient('reset_password.php?token='+resetToken)).location,'reset_password.php');
   check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"'),
     'An expired reset link never offers a password form');
-  await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()+INTERVAL '30 minutes' WHERE user_id=4");
+  await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()+INTERVAL '15 minutes' WHERE user_id=4");
   const linkOpened=await resetClient('reset_password.php?token='+resetToken);
   let resetPage=await resetClient('reset_password.php');
   check(linkOpened.status===303 && linkOpened.location==='reset_password.php' && resetPage.html.includes('id="recovery-password"')

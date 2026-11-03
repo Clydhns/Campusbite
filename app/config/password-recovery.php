@@ -45,13 +45,13 @@ function cbRequestPasswordRecovery(PDO $pdo, string $email, string $address): vo
     $token = bin2hex(random_bytes(32));
     $hash = hash('sha256', $token);
     $query = $pdo->prepare("INSERT INTO campusbite_private.password_resets(token_hash,user_id,email,credential_stamp,expires_at)
-        VALUES (?,?,?,?,clock_timestamp()+INTERVAL '30 minutes')");
+        VALUES (?,?,?,?,clock_timestamp()+INTERVAL '15 minutes')");
     $query->execute([$hash,$account['user_id'],$account['email'],cbStaffCredentialStamp($account['password_hash'])]);
     try {
         $link = cbRecoveryOrigin() . '/reset_password.php?token=' . $token;
         cbRecoveryMail($account['email'], 'Reset your CampusBite password',
             "Someone requested a password reset for your CampusBite account.\n\n$link\n\n"
-            . "This single-use link expires in 30 minutes. Your password has not changed.\n"
+            . "This single-use link expires in 15 minutes. Your password has not changed.\n"
             . "If you did not request this, ignore this email. Never share this link.\n\n"
             . "CampusBite is an independent student project, not your school or email provider.");
     } catch (Throwable $error) {

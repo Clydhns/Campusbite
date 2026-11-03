@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             error_log('CampusBite recovery: ' . ($exception instanceof PDOException ? 'database_failed' : 'request_failed'));
         }
         // Identical response for active, inactive, unknown, throttled, and failed-delivery requests.
-        $message = 'If an active CampusBite account matches that email, we will send a reset link. Check your inbox and spam folder. The link expires in 30 minutes.';
+        $message = 'If an active CampusBite account matches that email, we will send a reset link. Check your inbox and spam folder. The link expires in 15 minutes.';
         // SMTP is capped at four seconds. Pad short paths to avoid disclosing account existence by timing.
         if (getenv('CAMPUSBITE_LOCAL_TEST')!=='1') {
             $remaining = 6 - (microtime(true)-$started);
