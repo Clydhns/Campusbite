@@ -15,8 +15,8 @@ a.cb-brand-logo.cb-site-brand,a.cb-brand-logo {
     display:grid;
     place-items:center;
     flex-shrink:0;
-    width:50px;
-    height:50px;
+    width:64px;
+    height:64px;
     box-sizing:border-box;
     margin:0;
     padding:0;
@@ -31,15 +31,20 @@ a.cb-brand-logo.cb-site-brand,a.cb-brand-logo {
 .cb-brand-logo .cb-brand-name {
     display:inline;
     margin:0;
-    font-size:28px;
+    font-size:32px;
     font-weight:900;
     letter-spacing:-.8px;
     color:#E63946;
 }
+/* The logo carries its own colours, so drop the text badge's tile styling. A CSS background keeps it decorative. */
+.cb-brand-logo .cb-brand-badge.cb-brand-icon { border:0; border-radius:0; background:url('assets/campusbite-logo.svg') center / contain no-repeat; }
+/* The steam fills the top of the logo, so the CB letters sit about 18% below its centre. Line the name up with the letters. */
+.cb-brand-logo .cb-brand-icon + .cb-brand-name { transform:translateY(11px); }
 .cb-brand-logo:focus-visible { outline:3px solid #a61f2e; outline-offset:5px; border-radius:17px; }
-.cb-brand-tagline { display:block; margin:8px 0 0 62px; font-size:10px; font-weight:900; letter-spacing:2px; color:#684632; }
+.cb-brand-tagline { display:block; margin:8px 0 0 76px; font-size:10px; font-weight:900; letter-spacing:2px; color:#684632; }
 @media(max-width:640px) {
-    .cb-brand-logo .cb-brand-badge { width:42px; height:42px; border-radius:14px; font-size:13px; }
-    .cb-brand-logo .cb-brand-name { font-size:23px; }
-    .cb-brand-tagline { margin-left:54px; }
+    .cb-brand-logo .cb-brand-badge { width:54px; height:54px; border-radius:14px; font-size:13px; }
+    .cb-brand-logo .cb-brand-name { font-size:27px; }
+    .cb-brand-logo .cb-brand-icon + .cb-brand-name { transform:translateY(9px); }
+    .cb-brand-tagline { margin-left:66px; }
 }

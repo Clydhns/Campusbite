@@ -16,3 +16,4 @@ private-data/
 *.pem
 *.key
 app/generate_hash.php
+tools/.dev-data/

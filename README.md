@@ -36,10 +36,35 @@ The socket test adapter shares one PostgreSQL process; this is NOT a production
 concurrency/load test. Real Supabase credentials, TLS, pooling behavior and Storage
 uploads have not been tested. No Supabase project has been modified.
 
+## Database migrations to apply (added 2026-11-02)
+
+The code in this repository now needs these three migrations. Someone with access to
+the Supabase project must paste and run them in the SQL editor, in this order, **before**
+this code is deployed. Without them, My Profile and the staff order page fail with a
+database error, and staff cannot add food (there are no categories to choose from).
+
+| Order | File | What it does |
+|---|---|---|
+| 1 | `supabase/migrations/20261102090000_default_categories.sql` | Adds the starting food categories: Rice Meals, Snacks, Beverages, Desserts. Safe to re-run; existing names are skipped. |
+| 2 | `supabase/migrations/20261102120000_favorite_stores.sql` | Creates `favorite_stores` for students' saved kitchens (heart button), with RLS and server-role access only. |
+| 3 | `supabase/migrations/20261102150000_profile_photos.sql` | Adds `users.avatar_path` for optional student profile photos. |
+
+Notes:
+
+- Apply the earlier migrations first if the project is still empty (see step 1 below).
+- No new Storage bucket is needed. Profile photos go to the existing private
+  `campusbite-receipts` bucket under `avatars/` and are served only by
+  `profile_photo.php` after checking the viewer is the student, that kitchen's staff,
+  or an admin.
+- The local dev server (`npm run dev` in `tools/`) applies new migrations to its own
+  local database automatically. That never touches Supabase.
+
 ## Still required before a preview
 
-1. Review and apply migrations 001, 002, 003 in order in the empty Supabase project.
-   These contain schema/reference dictionaries only, not dummy accounts.
+1. Review and apply every file in `supabase/migrations/` in filename order in the empty
+   Supabase project. These contain schema, reference dictionaries and the default food
+   categories (Rice Meals, Snacks, Beverages, Desserts) only, not dummy accounts.
+   Administrators manage categories afterwards on the admin Categories page.
 2. Configure the server-only values listed in `.env.example` through Vercel's
    environment settings. Never paste secrets into chat or commit a filled env file.
 3. Use the Supabase SESSION pooler on port 5432, not the transaction pooler on 6543:
@@ -77,6 +102,13 @@ Run `npm run test:runtime` in `tools/` for the PHP integration checks. On Window
 these temporarily load the installed PDO PostgreSQL extension through a CLI flag;
 they do not modify php.ini or the XAMPP application. Set PHP_BINARY to override
 the default C:/xampp/php/php.exe path. Loopback ports 18758/18759 must be available.
+
+Run `npm run dev` in `tools/` to browse the app at http://127.0.0.1:18769/login.php.
+It uses a local PGlite database saved in `tools/.dev-data/` (git-ignored), seeded with
+admin/staff/student `@example.invalid` accounts using the password `campusbite-dev`.
+PHP, CSS and JavaScript edits appear on refresh. Use `npm run dev -- --reset` to start
+again from the seed data. Uploaded photos and receipts are saved on disk in
+`tools/.dev-data/storage/` instead of Supabase Storage.
 
 Run `npm run build` at the project root to assemble `public/`. Only CSS, JavaScript,
 and approved static assets are copied. `app/` is bundled privately by the PHP

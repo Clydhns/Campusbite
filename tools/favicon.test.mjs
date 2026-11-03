@@ -41,17 +41,34 @@ test('Every HTML page head uses the shared favicon links', async () => {
     assert.match(head[1], /require __DIR__ \. '\/components\/favicon\.php'/, file);
     heads++;
   }
-  assert.equal(heads, 15);
+  assert.equal(heads, 17);
   const result = spawnSync(process.env.PHP_BINARY || 'C:/xampp/php/php.exe',
     ['app/components/favicon.php'], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /href="favicon\.ico\?v=\d+"/);
   assert.match(result.stdout, /href="favicon\.svg\?v=\d+" type="image\/svg\+xml"/);
   assert.match(result.stdout, /rel="apple-touch-icon"[^>]*sizes="180x180"/);
+  assert.match(result.stdout, /rel="manifest" href="manifest\.webmanifest\?v=\d+"/);
 });
 
-test('The static build publishes all three icons unchanged', async () => {
-  for (const file of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png']) {
+test('The web app manifest uses opaque home-screen icons of the declared sizes', async () => {
+  const manifest = JSON.parse((await read('app/manifest.webmanifest')).toString());
+  assert.equal(manifest.name, 'CampusBite');
+  assert.equal(manifest.start_url, 'dashboard.php');
+  assert.ok(manifest.icons.some(icon => icon.purpose === 'maskable'));
+  for (const icon of manifest.icons) {
+    const png = await read('app/' + icon.src);
+    const size = Number(icon.sizes.split('x')[0]);
+    assert.deepEqual(png.subarray(0, 8), pngSignature, icon.src);
+    assert.equal(png.readUInt32BE(16), size, icon.src);
+    assert.equal(png.readUInt32BE(20), size, icon.src);
+    // Colour type 2 is RGB without alpha, so launchers never show a transparent or black background.
+    assert.equal(png[25], 2, icon.src);
+  }
+});
+
+test('The static build publishes all icons and the manifest unchanged', async () => {
+  for (const file of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
     assert.deepEqual(await read('public/' + file), await read('app/' + file), file);
   }
 });

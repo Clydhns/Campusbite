@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 ob_start(); require_once __DIR__ . "/config/connection.php"; ob_end_clean();
 require_once __DIR__ . "/config/stores.php";
+require_once __DIR__ . "/config/profile-photos.php";
 
 
 // =========================================================
@@ -441,6 +442,7 @@ $orders_sql = "
         u.first_name,
         u.last_name,
         u.email,
+        u.avatar_path,
 
         p.method AS payment_method,
         p.payment_status,
@@ -1443,6 +1445,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['sync'] ?? '') === '1'
     <link rel="stylesheet" href="payment-confirmation.css?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.css') ?>">
     <script src="payment-confirmation.js?v=<?= (int) filemtime(__DIR__ . '/payment-confirmation.js') ?>" defer></script>
     <link rel="stylesheet" href="payment-receipts.css?v=<?= (int) filemtime(__DIR__ . '/payment-receipts.css') ?>">
+    <link rel="stylesheet" href="staff-customer-photo.css?v=<?= (int) filemtime(__DIR__ . '/staff-customer-photo.css') ?>">
+    <script src="staff-customer-photo.js?v=<?= (int) filemtime(__DIR__ . '/staff-customer-photo.js') ?>" defer></script>
     <link rel="stylesheet" href="dashboard-commerce.css?v=1">
 <link rel="stylesheet" href="stores.css?v=1">
     <link rel="stylesheet" href="student-navbar.css?v=1">
@@ -1716,25 +1720,25 @@ campusBiteTracking($pdo, $orders, true);
                 <div class="order-content">
 
 
-                    <div class="customer-name">
-
-                        Customer:
-
-                        <?= htmlspecialchars(
-                            $order["first_name"] .
-                            " " .
-                            $order["last_name"]
-                        ) ?>
-
-                    </div>
-
-
-                    <div class="customer-email">
-
-                        <?= htmlspecialchars(
-                            $order["email"]
-                        ) ?>
-
+                    <?php
+                    $customerName = $order["first_name"] . " " . $order["last_name"];
+                    $customerPhoto = cbProfilePhotoUrl($order["avatar_path"] ?? null, (int) $order["order_id"]);
+                    ?>
+                    <div class="cb-customer-row">
+                        <div class="cb-customer-details">
+                            <div class="customer-name">Customer: <?= htmlspecialchars($customerName) ?></div>
+                            <div class="customer-email"><?= htmlspecialchars($order["email"]) ?></div>
+                        </div>
+                        <?php if ($customerPhoto): ?>
+                        <button type="button" class="cb-customer-photo" data-customer-photo="<?= htmlspecialchars($customerPhoto) ?>" data-customer-name="<?= htmlspecialchars($customerName) ?>" aria-label="Show a larger photo of <?= htmlspecialchars($customerName) ?>">
+                            <img src="<?= htmlspecialchars($customerPhoto) ?>" alt="" width="56" height="56" loading="lazy">
+                        </button>
+                        <?php else: ?>
+                        <span class="cb-customer-photo cb-customer-no-photo" title="This customer has not added a photo">
+                            <span aria-hidden="true"><?= htmlspecialchars(strtoupper(substr((string) $order["first_name"], 0, 1) . substr((string) $order["last_name"], 0, 1))) ?></span>
+                            <small>No photo</small>
+                        </span>
+                        <?php endif; ?>
                     </div>
 
 
@@ -2109,6 +2113,14 @@ campusBiteTracking($pdo, $orders, true);
 <div class="staff-order-notice" id="staff-order-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
 <?php require __DIR__ . '/components/payment-confirmation.php'; ?>
+<dialog class="cb-customer-photo-dialog" id="customer-photo-dialog" aria-labelledby="customer-photo-name">
+    <img id="customer-photo-large" src="" alt="">
+    <div class="cb-customer-photo-dialog-foot">
+        <strong id="customer-photo-name"></strong>
+        <span>Check this is the person collecting the order.</span>
+    </div>
+    <button type="button" class="cb-customer-photo-close" data-customer-photo-close aria-label="Close photo"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</dialog>
 </body>
 
 </html>

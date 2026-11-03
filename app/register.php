@@ -2,6 +2,7 @@
 
 require_once "config/connection.php";
 require_once __DIR__ . '/config/auth-security.php';
+require_once __DIR__ . '/config/staff-password.php';
 
 $message = "";
 $error = "";
@@ -128,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !cbAuthRequestValid()) {
                         'last_name' => $registeredUser['last_name'],
                         'email' => $registeredUser['email'],
                         'role_name' => 'Student',
+                        'student_credential_stamp' => cbStaffCredentialStamp($password_hash),
                     ];
                     session_write_close();
                     header('Location: dashboard.php', true, 303);

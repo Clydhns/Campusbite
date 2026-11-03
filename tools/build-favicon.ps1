@@ -46,7 +46,7 @@ function Get-IconPng([int] $Size) {
     }
 }
 
-[System.IO.File]::WriteAllBytes((Join-Path $assetDirectory 'apple-touch-icon.png'), (Get-IconPng 180))
+# apple-touch-icon.png and the manifest icons are rendered from the C.svg logo by tools/build-app-icons.mjs.
 [byte[]] $iconPng = Get-IconPng 32
 $container = [System.IO.MemoryStream]::new()
 $writer = [System.IO.BinaryWriter]::new($container)
@@ -58,4 +58,4 @@ try {
     $writer.Write($iconPng); $writer.Flush()
     [System.IO.File]::WriteAllBytes((Join-Path $assetDirectory 'favicon.ico'), $container.ToArray())
 } finally { $writer.Dispose(); $container.Dispose() }
-Write-Output 'Built CampusBite ICO and 180px home-screen icon without external dependencies.'
+Write-Output 'Built the CampusBite ICO without external dependencies.'
