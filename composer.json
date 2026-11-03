@@ -1,0 +1,12 @@
+{
+  "name": "campusbite/cloud",
+  "require": {
+    "php": ">=8.2",
+    "ext-openssl": "*",
+    "phpmailer/phpmailer": "7.1.1"
+  },
+  "config": {
+    "allow-plugins": false,
+    "sort-packages": true
+  }
+}

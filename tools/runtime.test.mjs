@@ -150,7 +150,7 @@ try {
     && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
     && publicLogin.html.includes('index.php#data-use'),
     'Authentication pages link to project details and restrict external form submissions and framing');
-  for(const route of ['generate_hash.php','app/config/connection.php','uploads/receipts/'+ 'a'.repeat(32)+'.png','.env','tests/admin-account-request.php']) {
+  for(const route of ['generate_hash.php','app/config/connection.php','uploads/receipts/'+ 'a'.repeat(32)+'.png','.env','tests/admin-account-request.php','vendor/autoload.php','composer.json','composer.lock','tools/tests/recovery-smtp.php']) {
     assert.equal((await anon(route)).status,404);
   }
   check(true,'Router denies utilities, configuration, private receipts, environment files and tests');

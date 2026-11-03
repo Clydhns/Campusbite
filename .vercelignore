@@ -8,6 +8,7 @@ tools/php-integration.php
 tools/package*.json
 private-data/
 .env*
+/vendor/
 README.md
 tools/.dev-data/
 tools/dev-server.mjs

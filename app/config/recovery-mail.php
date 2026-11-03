@@ -8,9 +8,13 @@ function cbRecoveryMailSettings(): ?array {
             . ' app_password_valid=' . (int)(preg_match('/^[a-z]{16}$/D',$password)===1));
         throw new RuntimeException('Recovery mail is not configured.');
     }
-    if (!function_exists('curl_version') || !in_array('smtps',curl_version()['protocols'],true)) {
-        error_log('CampusBite recovery: smtps_unavailable');
+    if (!extension_loaded('openssl') || !function_exists('stream_socket_client') || !in_array('ssl',stream_get_transports(),true)) {
+        error_log('CampusBite recovery: smtp_socket_tls_unavailable');
         throw new RuntimeException('SMTP TLS is unavailable.');
+    }
+    if (!is_file(dirname(__DIR__,2) . '/vendor/autoload.php')) {
+        error_log('CampusBite recovery: smtp_library_unavailable');
+        throw new RuntimeException('SMTP library is unavailable.');
     }
     return [$sender,$password];
 }
@@ -29,29 +33,17 @@ function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter
         return;
     }
     [$sender,$password] = cbRecoveryMailSettings();
-    $message = 'Date: ' . gmdate('D, d M Y H:i:s') . " +0000\r\n"
-        . "From: CampusBite <$sender>\r\nTo: <$recipient>\r\n"
-        . 'Message-ID: <' . bin2hex(random_bytes(16)) . "@campusbite.local>\r\n"
-        . "Subject: $subject\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n"
-        . "Content-Transfer-Encoding: base64\r\n\r\n" . chunk_split(base64_encode($text), 76, "\r\n");
-    $offset = 0;
-    $curl = curl_init('smtps://smtp.gmail.com:465');
+    require_once __DIR__ . '/recovery-smtp.php';
+    $mail = cbCreateRecoveryMailer($sender,$password);
     try {
-        curl_setopt_array($curl, [
-            CURLOPT_PROTOCOLS=>CURLPROTO_SMTPS, CURLOPT_USERNAME=>$sender, CURLOPT_PASSWORD=>$password,
-            CURLOPT_MAIL_FROM=>"<$sender>", CURLOPT_MAIL_RCPT=>["<$recipient>"], CURLOPT_UPLOAD=>true,
-            CURLOPT_READFUNCTION=>static function ($handle, $stream, $length) use (&$offset, $message): string {
-                $chunk = substr($message, $offset, $length); $offset += strlen($chunk); return $chunk;
-            },
-            CURLOPT_INFILESIZE=>strlen($message), CURLOPT_CONNECTTIMEOUT=>2, CURLOPT_TIMEOUT=>4,
-            CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_RETURNTRANSFER=>true,
-        ]);
-        if (curl_exec($curl) === false || curl_getinfo($curl, CURLINFO_RESPONSE_CODE) >= 400) {
-            // Do not log SMTP debug output, credentials, recipient, or reset links.
-            error_log('CampusBite recovery: smtp_failed curl_code=' . curl_errno($curl)
-                . ' smtp_status=' . (int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE));
-            throw new RuntimeException('Recovery email could not be sent.');
-        }
+        $mail->addAddress($recipient);
+        $mail->Subject=$subject;
+        $mail->Body=$text;
+        $mail->send();
         error_log('CampusBite recovery: smtp_accepted');
-    } finally { curl_close($curl); }
+    } catch (Throwable $error) {
+        // Never log ErrorInfo, SMTP replies, debug transcripts, recipients, or credentials.
+        error_log('CampusBite recovery: smtp_failed smtp_status=' . $mail->getSMTPInstance()->failureCode);
+        throw new RuntimeException('Recovery email could not be sent.');
+    } finally { $mail->smtpClose(); }
 }

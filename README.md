@@ -74,8 +74,10 @@ sender) and `SMTP_PASSWORD` (its Google app password, not its account password).
 if the canonical HTTPS domain changes. Never use `NEXT_PUBLIC_` for credentials.
 Do not put production mail credentials in Preview deployments or local tests.
 
-Mail uses cURL SMTPS to `smtp.gmail.com:465`, with certificate validation enabled;
-the PHP runtime must support the `smtps` protocol. No extra package is required.
+Mail uses PHPMailer 7.1.1 over OpenSSL SMTP sockets to `smtp.gmail.com:465`, with
+certificate and hostname validation enabled. It does not need cURL SMTP support.
+Run `composer install --no-dev --no-scripts --no-plugins` locally; the PHP Vercel
+runtime installs the committed Composer lockfile and bundles `vendor/` privately.
 Verify a real recovery email after deploying: local integration tests use a
 disposable inbox, not Gmail. Gmail delivery/SMTP support on Vercel and browser
 visual checks are not established by those local tests.
