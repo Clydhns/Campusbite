@@ -1111,6 +1111,11 @@ try {
   check(unknown.status===known.status && generic(unknown)===generic(known) && generic(inactive)===generic(known)
     && (await inbox()).length===1,'Unknown, inactive and active emails receive the same confirmation without disclosing accounts');
   const mail=(await inbox())[0];
+  check(mail.html.includes('>Reset password</a>') && mail.html.includes('VALID FOR 15 MINUTES')
+    && mail.html.includes('role="presentation"') && mail.html.includes('#e63946')
+    && !mail.html.replace(/<[^>]*>/g,'').includes('token=') && !/<script\b|<img\b/i.test(mail.html)
+    && mail.text.includes('reset_password.php?token='),
+    'Recovery email has a branded button, expiry notice and plain-text fallback without a visible token URL or remote images');
   const resetToken=mail.text.match(/reset_password\.php\?token=([a-f0-9]{64})/)[1];
   const resets=(await db.query('SELECT * FROM campusbite_private.password_resets WHERE user_id=4')).rows;
   const lifetime=(await db.query("SELECT EXTRACT(EPOCH FROM (expires_at-clock_timestamp())) AS seconds FROM campusbite_private.password_resets WHERE user_id=4")).rows[0].seconds;
@@ -1147,6 +1152,10 @@ try {
   check(linkOpened.status===303 && linkOpened.location==='reset_password.php' && resetPage.html.includes('id="recovery-password"')
     && !resetPage.html.includes(resetToken) && (await db.query('SELECT used_at FROM campusbite_private.password_resets WHERE user_id=4')).rows[0].used_at===null,
     'Opening a link removes the token from the address and markup without consuming it');
+  check((resetPage.html.match(/data-recovery-toggle\s/g) || []).length===2
+    && resetPage.html.includes('aria-controls="recovery-password"') && resetPage.html.includes('aria-controls="recovery-confirm"')
+    && resetPage.html.includes('type="button" class="password-toggle recovery-toggle"') && resetPage.html.includes('src="recovery.js?v='),
+    'Both recovery password fields have labelled, non-submitting visibility buttons and load their small toggle script');
   await db.query("UPDATE users SET email='changed@example.invalid' WHERE user_id=4");
   check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"'),
     'An email change invalidates a recovery link issued to the previous address');

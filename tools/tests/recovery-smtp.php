@@ -7,6 +7,7 @@ putenv('CAMPUSBITE_LOCAL_TEST=');
 putenv('CAMPUSBITE_TEST_MAILBOX=');
 [$sender,$password]=cbRecoveryMailSettings();
 require dirname(__DIR__,2) . '/app/config/recovery-smtp.php';
+require dirname(__DIR__,2) . '/app/config/recovery-email.php';
 $mail=cbCreateRecoveryMailer($sender,$password);
 $secure=$mail->Host==='smtp.gmail.com' && $mail->Port===465 && $mail->SMTPSecure==='ssl'
     && $mail->SMTPOptions['ssl']===['verify_peer'=>true,'verify_peer_name'=>true,'allow_self_signed'=>false]
@@ -18,7 +19,9 @@ $mail->SMTPSecure='';
 $mail->SMTPAutoTLS=false;
 $mail->addAddress('recipient@example.invalid');
 $mail->Subject='Fixture recovery email';
-$mail->Body='Fixture message only. No real user or reset token.';
+$mail->isHTML(true);
+$mail->Body=cbRecoveryEmailHtml('https://example.invalid/reset_password.php?token=fixture');
+$mail->AltBody='Fixture message only. No real user or reset token.';
 $accepted=false;
 $status=0;
 try { $accepted=$mail->send(); }

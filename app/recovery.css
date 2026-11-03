@@ -3,4 +3,8 @@
 .recovery-note { color:#685344; font-size:13px; line-height:1.7; margin:16px 0; }
 .recovery-back { display:block; width:fit-content; margin:24px auto 0; }
 .recovery-link,.recovery-back { color:#a61f2e; font-weight:800; text-underline-offset:4px; }
+.recovery-password-field input { padding-right:60px; }
+.recovery-toggle { width:44px; height:44px; }
+.recovery-eye-slash { display:none; }
+.recovery-toggle[aria-pressed="true"] .recovery-eye-slash { display:block; }
 @media(max-width:540px) { body { padding:20px 14px; } .recovery-card h1 { font-size:28px; } }

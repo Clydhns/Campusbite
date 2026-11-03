@@ -50,6 +50,13 @@ for(const mode of ['accept','reject','timeout']) {
     if(mode==='accept') {
       assert.match(delivered,/Subject: Fixture recovery email/);
       assert.match(delivered,/Content-Transfer-Encoding: base64/);
+      assert.match(delivered,/Content-Type: multipart\/alternative/);
+      assert.match(delivered,/Content-Type: text\/plain/);
+      assert.match(delivered,/Content-Type: text\/html/);
+      const bodies=[...delivered.matchAll(/Content-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+?)(?=\r\n--)/g)]
+        .map(match=>Buffer.from(match[1].replace(/\s/g,''),'base64').toString());
+      assert.ok(bodies.some(body=>body.includes('Fixture message only.')));
+      assert.ok(bodies.some(body=>body.includes('>Reset password</a>')));
       assert.match(delivered,/From: CampusBite <sender@example.invalid>/);
     }
     if(mode==='reject') assert.equal(result.smtp_status,535);

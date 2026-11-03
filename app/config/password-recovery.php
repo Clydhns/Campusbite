@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/staff-password.php';
 require_once __DIR__ . '/recovery-mail.php';
+require_once __DIR__ . '/recovery-email.php';
 
 function cbRecoveryOrigin(): string {
     // Never construct recovery URLs from Host or forwarded headers.
@@ -80,7 +81,7 @@ function cbRequestPasswordRecovery(PDO $pdo, string $email, string $address): vo
             "Someone requested a password reset for your CampusBite account.\n\n$link\n\n"
             . "This single-use link expires in 15 minutes. Your password has not changed.\n"
             . "If you did not request this, ignore this email. Never share this link.\n\n"
-            . "CampusBite is an independent student project, not your school or email provider.");
+            . "CampusBite is an independent student project, not your school or email provider.", cbRecoveryEmailHtml($link));
     } catch (Throwable $error) {
         $pdo->prepare('DELETE FROM campusbite_private.password_resets WHERE token_hash=?')->execute([$hash]);
         // A failed transport must not spend an account's successful-email allowance.

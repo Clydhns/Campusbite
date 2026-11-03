@@ -36,7 +36,7 @@ try {
             cbRecoveryMail($email,'Your CampusBite password was reset',
                 'Your CampusBite password was changed using email recovery. All existing sessions have been signed out. '
                 . 'If you did not do this, secure your email account and use Forgot password on CampusBite to recover access. '
-                . 'CampusBite is an independent student project, not your school or email provider.');
+                . 'CampusBite is an independent student project, not your school or email provider.', cbRecoveryEmailHtml(cbRecoveryOrigin().'/login.php',true));
         } catch (Throwable $exception) { error_log('CampusBite password-reset notification could not be sent.'); }
     }
 } catch (PDOException $exception) {

@@ -19,7 +19,7 @@ function cbRecoveryMailSettings(): ?array {
     return [$sender,$password];
 }
 
-function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter] string $text): void {
+function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter] string $text, #[SensitiveParameter] ?string $html=null): void {
     if (!filter_var($recipient, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $recipient)) {
         throw new RuntimeException('Invalid recipient.');
     }
@@ -27,7 +27,7 @@ function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter
     // Disposable test inbox only; never enable local-test settings on Vercel.
     $inbox = getenv('CAMPUSBITE_TEST_MAILBOX') ?: '';
     if (getenv('CAMPUSBITE_LOCAL_TEST') === '1' && !getenv('VERCEL') && $inbox !== '') {
-        if (file_put_contents($inbox, json_encode(['to'=>$recipient,'subject'=>$subject,'text'=>$text], JSON_THROW_ON_ERROR) . "\n", FILE_APPEND | LOCK_EX) === false) {
+        if (file_put_contents($inbox, json_encode(['to'=>$recipient,'subject'=>$subject,'text'=>$text,'html'=>$html], JSON_THROW_ON_ERROR) . "\n", FILE_APPEND | LOCK_EX) === false) {
             throw new RuntimeException('Unable to write test email.');
         }
         return;
@@ -38,7 +38,9 @@ function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter
     try {
         $mail->addAddress($recipient);
         $mail->Subject=$subject;
-        $mail->Body=$text;
+        $mail->isHTML($html!==null);
+        $mail->Body=$html ?? $text;
+        if ($html!==null) $mail->AltBody=$text;
         $mail->send();
         error_log('CampusBite recovery: smtp_accepted');
     } catch (Throwable $error) {
