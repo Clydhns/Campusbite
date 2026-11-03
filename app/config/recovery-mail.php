@@ -1,4 +1,20 @@
 <?php
+function cbRecoveryMailSettings(): ?array {
+    if (getenv('CAMPUSBITE_LOCAL_TEST')==='1' && !getenv('VERCEL') && (getenv('CAMPUSBITE_TEST_MAILBOX') ?: '')!=='') return null;
+    $sender = trim(getenv('SMTP_USERNAME') ?: '');
+    $password = str_replace(' ', '', getenv('SMTP_PASSWORD') ?: '');
+    if (!filter_var($sender,FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/',$sender) || !preg_match('/^[a-z]{16}$/D',$password)) {
+        error_log('CampusBite recovery: mail_configuration_invalid sender_valid=' . (int)(filter_var($sender,FILTER_VALIDATE_EMAIL)!==false)
+            . ' app_password_valid=' . (int)(preg_match('/^[a-z]{16}$/D',$password)===1));
+        throw new RuntimeException('Recovery mail is not configured.');
+    }
+    if (!function_exists('curl_version') || !in_array('smtps',curl_version()['protocols'],true)) {
+        error_log('CampusBite recovery: smtps_unavailable');
+        throw new RuntimeException('SMTP TLS is unavailable.');
+    }
+    return [$sender,$password];
+}
+
 function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter] string $text): void {
     if (!filter_var($recipient, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $recipient)) {
         throw new RuntimeException('Invalid recipient.');
@@ -12,17 +28,7 @@ function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter
         }
         return;
     }
-    $sender = trim(getenv('SMTP_USERNAME') ?: '');
-    $password = str_replace(' ', '', getenv('SMTP_PASSWORD') ?: '');
-    if (!filter_var($sender, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $sender) || !preg_match('/^[a-z]{16}$/D', $password)) {
-        error_log('CampusBite recovery: mail_configuration_invalid sender_valid=' . (int)(filter_var($sender,FILTER_VALIDATE_EMAIL)!==false)
-            . ' app_password_valid=' . (int)(preg_match('/^[a-z]{16}$/D',$password)===1));
-        throw new RuntimeException('Recovery mail is not configured.');
-    }
-    if (!function_exists('curl_version') || !in_array('smtps', curl_version()['protocols'], true)) {
-        error_log('CampusBite recovery: smtps_unavailable');
-        throw new RuntimeException('SMTP TLS is unavailable.');
-    }
+    [$sender,$password] = cbRecoveryMailSettings();
     $message = 'Date: ' . gmdate('D, d M Y H:i:s') . " +0000\r\n"
         . "From: CampusBite <$sender>\r\nTo: <$recipient>\r\n"
         . 'Message-ID: <' . bin2hex(random_bytes(16)) . "@campusbite.local>\r\n"

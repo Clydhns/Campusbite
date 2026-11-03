@@ -1126,6 +1126,16 @@ try {
     'Immediate repeat requests are throttled without sending another email or revealing the limit');
   check(logs.includes('CampusBite recovery: request_limited') && logs.includes('CampusBite recovery: no_eligible_account'),
     'Server diagnostics distinguish throttling and account lookup without exposing either in the public response');
+  const limitKey=scope=>createHmac('sha256',sessionSecret).update('recovery:'+scope+':student@example.invalid').digest('hex');
+  check(Number((await db.query('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=$1',[limitKey('request-email')])).rows[0].attempts)===1
+    && /limit_details scope=request-cooldown attempts=2 maximum=1 retry_seconds=\d+/.test(logs),
+    'A cooldown retry does not consume the hourly email allowance and logs its exact scope and retry time');
+  await db.query("UPDATE campusbite_private.recovery_limits SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE limit_key IN ($1,$2)",
+    [limitKey('request-email'),limitKey('request-cooldown')]);
+  await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
+  check((await inbox()).length===2
+    && Number((await db.query('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=$1',[limitKey('request-email')])).rows[0].attempts)===1,
+    'Expired hourly and cooldown counters restart at one and allow delivery without clearing other limits');
   await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE user_id=4");
   const resetClient=client();
   assert.equal((await resetClient('reset_password.php?token='+resetToken)).location,'reset_password.php');
@@ -1202,6 +1212,9 @@ try {
   check(generic(failedDelivery)===generic(known)
     && Number((await db.query('SELECT count(*) AS n FROM campusbite_private.password_resets')).rows[0].n)===tokensBeforeFailure,
     'A delivery failure keeps the same public response and removes the unsent reset token');
+  check((await db.query('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=$1',[limitKey('request-email')])).rows.length===0
+    && (await db.query('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=$1',[limitKey('request-cooldown')])).rows.length===1,
+    'Failed delivery releases its email quota claim while preserving the cooldown and abuse protections');
   await rm(mailboxPath,{recursive:true});
   await student('logout.php'); assert.equal((await student('profile.php')).status,302);
   check(true,'Logout destroys the persistent session');

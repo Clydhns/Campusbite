@@ -18,19 +18,46 @@ function cbRecoveryLimit(PDO $pdo, string $scope, string $identity, int $maximum
         ON CONFLICT (limit_key) DO UPDATE SET
         attempts=CASE WHEN recovery_limits.expires_at<=clock_timestamp() THEN 1 ELSE recovery_limits.attempts+1 END,
         expires_at=CASE WHEN recovery_limits.expires_at<=clock_timestamp() THEN EXCLUDED.expires_at ELSE recovery_limits.expires_at END
-        RETURNING attempts");
+        RETURNING attempts, GREATEST(0,CEIL(EXTRACT(EPOCH FROM (expires_at-clock_timestamp())))) AS retry_seconds");
     $query->execute([$key, $seconds]);
-    return (int) $query->fetchColumn() <= $maximum;
+    $limit = $query->fetch();
+    $allowed = (int)$limit['attempts'] <= $maximum;
+    if (!$allowed) {
+        error_log('CampusBite recovery: limit_details scope=' . $scope . ' attempts=' . (int)$limit['attempts']
+            . ' maximum=' . $maximum . ' retry_seconds=' . (int)$limit['retry_seconds']);
+    }
+    return $allowed;
+}
+
+function cbReleaseRecoveryEmailLimit(PDO $pdo, string $email): void {
+    $key = cbStaffCredentialStamp('recovery:request-email:' . $email);
+    $pdo->beginTransaction();
+    try {
+        $query = $pdo->prepare('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=? FOR UPDATE');
+        $query->execute([$key]);
+        $attempts = $query->fetchColumn();
+        if ($attempts !== false) {
+            $sql = (int)$attempts===1 ? 'DELETE FROM campusbite_private.recovery_limits WHERE limit_key=?'
+                : 'UPDATE campusbite_private.recovery_limits SET attempts=attempts-1 WHERE limit_key=?';
+            $pdo->prepare($sql)->execute([$key]);
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
 }
 
 function cbRequestPasswordRecovery(PDO $pdo, string $email, string $address): void {
     $email = strtolower(trim($email));
     if (strlen($email)>100 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+    // Validate configuration even while a previous test limit is active; never log the values.
+    cbRecoveryMailSettings();
     $pdo->exec("DELETE FROM campusbite_private.password_resets WHERE expires_at<clock_timestamp()-INTERVAL '1 day';
         DELETE FROM campusbite_private.recovery_limits WHERE expires_at<clock_timestamp()-INTERVAL '1 day'");
     if (!cbRecoveryLimit($pdo,'request-ip',$address,20,3600)
-        || !cbRecoveryLimit($pdo,'request-email',$email,3,3600)
         || !cbRecoveryLimit($pdo,'request-cooldown',$email,1,60)
+        || !cbRecoveryLimit($pdo,'request-email',$email,3,3600)
         || !cbRecoveryLimit($pdo,'request-global','all',200,86400)) {
         error_log('CampusBite recovery: request_limited');
         return;
@@ -56,6 +83,9 @@ function cbRequestPasswordRecovery(PDO $pdo, string $email, string $address): vo
             . "CampusBite is an independent student project, not your school or email provider.");
     } catch (Throwable $error) {
         $pdo->prepare('DELETE FROM campusbite_private.password_resets WHERE token_hash=?')->execute([$hash]);
+        // A failed transport must not spend an account's successful-email allowance.
+        // Source-address, cooldown and global abuse limits still apply.
+        cbReleaseRecoveryEmailLimit($pdo,$email);
         throw $error;
     }
 }

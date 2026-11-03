@@ -88,7 +88,7 @@ Successful resets invalidate all existing sessions and outstanding links, and
 return the user to normal login. Existing administrator sessions must sign in
 again once after deployment to receive their new credential stamp.
 
-Limits: three requests per email/hour, a one-minute email cooldown, 20 requests
+Limits: three eligible requests per email/hour, a one-minute email cooldown, 20 requests
 per source address/hour, 200 eligible requests across the app/day, and 30 reset
 submissions per source address/hour. Limit identities are HMACs, not raw email/IP
 values. `REMOTE_ADDR` is used rather than trusting arbitrary forwarded headers;
@@ -96,6 +96,12 @@ if the runtime shares a proxy address, its address limit is shared too. Recovery
 request responses are padded to six seconds (SMTP timeout four seconds) to
 reduce account-existence timing differences; unusually slow database operations
 can still exceed that floor. No account is locked or disabled by these limits.
+Cooldown retries do not consume the hourly email allowance. Failed transports
+release their email-quota claim but retain cooldown, source-address and global
+limits. Existing limits are not erased during deployment. Server-only
+`limit_details` diagnostics include the scope, attempt count and retry seconds,
+never email addresses or limit-key hashes. Mail configuration is validated before
+the limit checks so a blocked test cannot hide an unrelated configuration issue.
 
 For local tests only, `CAMPUSBITE_TEST_MAILBOX` can point to a disposable JSONL
 inbox when `CAMPUSBITE_LOCAL_TEST=1` and `VERCEL` is absent. It contains real reset
