@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         try {
             cbRequestPasswordRecovery($pdo, is_string($_POST['email'] ?? null) ? $_POST['email'] : '', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
         } catch (Throwable $exception) {
-            error_log('CampusBite recovery request could not be completed.');
+            error_log('CampusBite recovery: ' . ($exception instanceof PDOException ? 'database_failed' : 'request_failed'));
         }
         // Identical response for active, inactive, unknown, throttled, and failed-delivery requests.
         $message = 'If an active CampusBite account matches that email, we will send a reset link. Check your inbox and spam folder. The link expires in 30 minutes.';

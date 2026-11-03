@@ -1120,6 +1120,8 @@ try {
   const throttledRecovery=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
   check(generic(throttledRecovery)===generic(known) && (await inbox()).length===1,
     'Immediate repeat requests are throttled without sending another email or revealing the limit');
+  check(logs.includes('CampusBite recovery: request_limited') && logs.includes('CampusBite recovery: no_eligible_account'),
+    'Server diagnostics distinguish throttling and account lookup without exposing either in the public response');
   await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE user_id=4");
   const resetClient=client();
   assert.equal((await resetClient('reset_password.php?token='+resetToken)).location,'reset_password.php');

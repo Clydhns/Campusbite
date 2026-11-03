@@ -31,11 +31,17 @@ function cbRequestPasswordRecovery(PDO $pdo, string $email, string $address): vo
     if (!cbRecoveryLimit($pdo,'request-ip',$address,20,3600)
         || !cbRecoveryLimit($pdo,'request-email',$email,3,3600)
         || !cbRecoveryLimit($pdo,'request-cooldown',$email,1,60)
-        || !cbRecoveryLimit($pdo,'request-global','all',200,86400)) return;
+        || !cbRecoveryLimit($pdo,'request-global','all',200,86400)) {
+        error_log('CampusBite recovery: request_limited');
+        return;
+    }
     $query = $pdo->prepare('SELECT user_id,email,password_hash FROM users WHERE lower(email)=? AND is_active=1 AND role_id IN (1,2,3)');
     $query->execute([$email]);
     $account = $query->fetch();
-    if (!$account) return;
+    if (!$account) {
+        error_log('CampusBite recovery: no_eligible_account');
+        return;
+    }
     $token = bin2hex(random_bytes(32));
     $hash = hash('sha256', $token);
     $query = $pdo->prepare("INSERT INTO campusbite_private.password_resets(token_hash,user_id,email,credential_stamp,expires_at)
