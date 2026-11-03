@@ -1141,6 +1141,17 @@ try {
   check((await inbox()).length===2
     && Number((await db.query('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=$1',[limitKey('request-email')])).rows[0].attempts)===1,
     'Expired hourly and cooldown counters restart at one and allow delivery without clearing other limits');
+  await db.query('UPDATE campusbite_private.recovery_limits SET attempts=9 WHERE limit_key=$1',[limitKey('request-email')]);
+  await db.query("UPDATE campusbite_private.recovery_limits SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE limit_key=$1",[limitKey('request-cooldown')]);
+  await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
+  check((await inbox()).length===3
+    && Number((await db.query('SELECT attempts FROM campusbite_private.recovery_limits WHERE limit_key=$1',[limitKey('request-email')])).rows[0].attempts)===10,
+    'The tenth eligible recovery email in the hourly window is allowed');
+  await db.query("UPDATE campusbite_private.recovery_limits SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE limit_key=$1",[limitKey('request-cooldown')]);
+  const hourlyBlocked=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
+  check((await inbox()).length===3 && generic(hourlyBlocked)===generic(known)
+    && /limit_details scope=request-email attempts=11 maximum=10 retry_seconds=\d+/.test(logs),
+    'The eleventh hourly request is blocked without sending mail or disclosing the account');
   await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE user_id=4");
   const resetClient=client();
   assert.equal((await resetClient('reset_password.php?token='+resetToken)).location,'reset_password.php');

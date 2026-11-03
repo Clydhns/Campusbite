@@ -90,7 +90,7 @@ Successful resets invalidate all existing sessions and outstanding links, and
 return the user to normal login. Existing administrator sessions must sign in
 again once after deployment to receive their new credential stamp.
 
-Limits: three eligible requests per email/hour, a one-minute email cooldown, 20 requests
+Limits: ten eligible requests per email/hour, a one-minute email cooldown, 20 requests
 per source address/hour, 200 eligible requests across the app/day, and 30 reset
 submissions per source address/hour. Limit identities are HMACs, not raw email/IP
 values. `REMOTE_ADDR` is used rather than trusting arbitrary forwarded headers;

@@ -58,7 +58,7 @@ function cbRequestPasswordRecovery(PDO $pdo, string $email, string $address): vo
         DELETE FROM campusbite_private.recovery_limits WHERE expires_at<clock_timestamp()-INTERVAL '1 day'");
     if (!cbRecoveryLimit($pdo,'request-ip',$address,20,3600)
         || !cbRecoveryLimit($pdo,'request-cooldown',$email,1,60)
-        || !cbRecoveryLimit($pdo,'request-email',$email,3,3600)
+        || !cbRecoveryLimit($pdo,'request-email',$email,10,3600)
         || !cbRecoveryLimit($pdo,'request-global','all',200,86400)) {
         error_log('CampusBite recovery: request_limited');
         return;
