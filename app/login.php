@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !cbAuthRequestValid()) {
             } else {
 
                 session_regenerate_id(true);
-                unset($_SESSION['staff_credential_stamp'], $_SESSION['student_credential_stamp']);
+                unset($_SESSION['admin_credential_stamp'], $_SESSION['staff_credential_stamp'], $_SESSION['student_credential_stamp']);
                 $stampKey = cbCredentialStampKey((int) $user['role_id']);
                 if ($stampKey !== null) $_SESSION[$stampKey] = cbStaffCredentialStamp($user['password_hash']);
 

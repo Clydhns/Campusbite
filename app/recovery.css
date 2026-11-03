@@ -1,0 +1,6 @@
+.recovery-card { width:100%; max-width:540px; padding:clamp(24px,5vw,44px); border:1px solid var(--border); border-radius:24px; background:#fff; box-shadow:0 14px 44px #3b2a2010; }
+.recovery-brand { display:flex; width:fit-content; margin-bottom:36px; }
+.recovery-note { color:#685344; font-size:13px; line-height:1.7; margin:16px 0; }
+.recovery-back { display:block; width:fit-content; margin:24px auto 0; }
+.recovery-link,.recovery-back { color:#a61f2e; font-weight:800; text-underline-offset:4px; }
+@media(max-width:540px) { body { padding:20px 14px; } .recovery-card h1 { font-size:28px; } }

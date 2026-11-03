@@ -5,9 +5,9 @@ function cbStaffCredentialStamp(string $hash): string {
     return hash_hmac('sha256', $hash, $secret);
 }
 
-// Staff and student sessions keep a stamp of the current password hash, so changing it signs out other sessions.
+// Every account role keeps a stamp so a recovery reset invalidates existing sessions.
 function cbCredentialStampKey(int $roleId): ?string {
-    return [2 => 'staff_credential_stamp', 3 => 'student_credential_stamp'][$roleId] ?? null;
+    return [1 => 'admin_credential_stamp', 2 => 'staff_credential_stamp', 3 => 'student_credential_stamp'][$roleId] ?? null;
 }
 
 function cbChangeStaffPassword(PDO $pdo, int $userId, #[SensitiveParameter] array $input): string {
@@ -17,16 +17,10 @@ function cbChangeStaffPassword(PDO $pdo, int $userId, #[SensitiveParameter] arra
 function cbChangeAccountPassword(PDO $pdo, int $userId, int $roleId, #[SensitiveParameter] array $input): string {
     if (cbCredentialStampKey($roleId) === null) throw new LogicException('Unsupported account role.');
     $current = $input['current_password'] ?? null;
-    $password = $input['new_password'] ?? null;
-    $confirm = $input['confirm_password'] ?? null;
     if (!is_string($current) || $current === '' || strlen($current) > 4096 || str_contains($current, "\0")) {
         throw new RuntimeException('Enter your current password.');
     }
-    if (!is_string($password) || strlen($password) > 72 || str_contains($password, "\0")
-        || !preg_match('/^.{8,}$/us', $password)) {
-        throw new RuntimeException('Use at least 8 characters and no more than 72 bytes for the new password.');
-    }
-    if (!is_string($confirm) || !hash_equals($password, $confirm)) throw new RuntimeException('The new passwords do not match.');
+    $password = cbValidateNewPassword($input);
     $pdo->beginTransaction();
     try {
         $query = $pdo->prepare('SELECT password_hash FROM users WHERE user_id=? AND role_id=? AND is_active=1 FOR UPDATE');
@@ -44,4 +38,14 @@ function cbChangeAccountPassword(PDO $pdo, int $userId, int $roleId, #[Sensitive
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $error;
     }
+}
+
+function cbValidateNewPassword(#[SensitiveParameter] array $input): string {
+    $password = $input['new_password'] ?? null;
+    $confirm = $input['confirm_password'] ?? null;
+    if (!is_string($password) || strlen($password)>72 || str_contains($password,"\0") || !preg_match('/^.{8,}$/us',$password)) {
+        throw new RuntimeException('Use at least 8 characters and no more than 72 bytes for the new password.');
+    }
+    if (!is_string($confirm) || !hash_equals($password,$confirm)) throw new RuntimeException('The new passwords do not match.');
+    return $password;
 }

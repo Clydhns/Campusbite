@@ -46,12 +46,19 @@ try {
   // Seed the same Philippine calendar day used by the application connections.
   await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
   const privateTables=(await db.query("SELECT relrowsecurity FROM pg_class JOIN pg_namespace n ON n.oid=relnamespace WHERE n.nspname='campusbite_private' AND relkind='r'")).rows;
-  check(privateTables.length===2 && privateTables.every(table=>table.relrowsecurity),'Both private runtime tables have RLS enabled');
+  check(privateTables.length===4 && privateTables.every(table=>table.relrowsecurity),'All four private runtime and recovery tables have RLS enabled');
+  const recoveryGrants=await db.query("SELECT grantee FROM information_schema.table_privileges WHERE table_schema='campusbite_private' AND table_name IN ('password_resets','recovery_limits') AND grantee IN ('PUBLIC','anon','authenticated')");
+  check(recoveryGrants.rows.length===0,'Recovery records and rate-limit keys are not granted to browser roles');
+  await db.exec('GRANT USAGE ON SCHEMA campusbite_private TO anon; SET ROLE anon');
+  await assert.rejects(db.exec('SELECT * FROM campusbite_private.password_resets'));
+  await assert.rejects(db.exec('SELECT * FROM campusbite_private.recovery_limits'));
+  await db.exec('RESET ROLE; REVOKE USAGE ON SCHEMA campusbite_private FROM anon');
+  check(true,'Anonymous access remains denied even if schema visibility is accidentally granted');
   // Test bucket metadata separately; this does not emulate the Supabase Storage API.
   await db.exec('CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
   await db.exec(await readFile(path.join(root,'supabase/migrations/202610290003_storage.sql'),'utf8'));
@@ -96,7 +103,8 @@ try {
     'Admin statistics use one query while retaining correct empty, current-day and historical totals');
   child=spawn(php,['-d','extension=php_pdo_pgsql.dll','-d','display_errors=0','-S','127.0.0.1:18759','api/index.php'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,
     PGHOST:'127.0.0.1',PGPORT:'18758',PGDATABASE:'postgres',PGUSER:'postgres',PGPASSWORD:'local-fixture-only',
-    APP_SESSION_SECRET:sessionSecret,CAMPUSBITE_LOCAL_TEST:'1',CAMPUSBITE_LOCAL_STORAGE_DIR:storageDir,SUPABASE_URL:'',SUPABASE_SECRET_KEY:''}});
+    APP_SESSION_SECRET:sessionSecret,CAMPUSBITE_LOCAL_TEST:'1',CAMPUSBITE_LOCAL_STORAGE_DIR:storageDir,
+    CAMPUSBITE_TEST_MAILBOX:path.join(storageDir,'recovery-mail.jsonl'),SMTP_USERNAME:'',SMTP_PASSWORD:'',VERCEL:'',SUPABASE_URL:'',SUPABASE_SECRET_KEY:''}});
   child.stderr.on('data',data=>{logs+=data.toString();}); child.stdout.on('data',data=>{logs+=data.toString();});
   child.on('error',error=>{logs+=error.message;});
   for(let i=0;i<60;i++) {
@@ -1083,6 +1091,112 @@ try {
   check(throttled.html.includes('Too many attempts.')
     && (await db.query('SELECT password_hash FROM users WHERE user_id=2')).rows[0].password_hash===changedStaffHash,
     'Five incorrect current-password attempts pause further password changes for one minute without modifying the account');
+  const inbox=async()=>{
+    try {return (await readFile(path.join(storageDir,'recovery-mail.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}
+    catch(error) {if(error.code==='ENOENT') return []; throw error;}
+  };
+  const recovery=client();
+  const recoveryPage=await recovery('forgot_password.php');
+  check(recoveryPage.status===200 && (await client()('login.php')).html.includes('href="forgot_password.php"')
+    && recoveryPage.html.includes('students, staff, and administrators'),
+    'Forgot password is public, linked from sign-in, and supports all account roles');
+  const recoveryCsrf=token(recoveryPage.html);
+  const beforeRecoveryHash=(await db.query('SELECT password_hash FROM users WHERE user_id=4')).rows[0].password_hash;
+  await recovery('forgot_password.php',{csrf_token:'invalid',email:'student@example.invalid'});
+  check((await inbox()).length===0,'Invalid CSRF cannot generate recovery mail');
+  const unknown=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'unknown@example.invalid'});
+  const inactive=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'other@example.invalid'});
+  const known=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'STUDENT@example.invalid'});
+  const generic=page=>page.html.match(/<p class="success" role="status">([\s\S]*?)<\/p>/)?.[1];
+  check(unknown.status===known.status && generic(unknown)===generic(known) && generic(inactive)===generic(known)
+    && (await inbox()).length===1,'Unknown, inactive and active emails receive the same confirmation without disclosing accounts');
+  const mail=(await inbox())[0];
+  const resetToken=mail.text.match(/reset_password\.php\?token=([a-f0-9]{64})/)[1];
+  const resets=(await db.query('SELECT * FROM campusbite_private.password_resets WHERE user_id=4')).rows;
+  check(resets.length===1 && resets[0].token_hash!==resetToken && !JSON.stringify(resets).includes(resetToken)
+    && !known.html.includes(resetToken) && mail.text.includes('https://campusbite-orpin.vercel.app/reset_password.php?token=')
+    && (await db.query('SELECT password_hash FROM users WHERE user_id=4')).rows[0].password_hash===beforeRecoveryHash,
+    'Recovery sends a canonical HTTPS link, stores only its hash and leaves the password unchanged');
+  const throttledRecovery=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
+  check(generic(throttledRecovery)===generic(known) && (await inbox()).length===1,
+    'Immediate repeat requests are throttled without sending another email or revealing the limit');
+  await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE user_id=4");
+  const resetClient=client();
+  assert.equal((await resetClient('reset_password.php?token='+resetToken)).location,'reset_password.php');
+  check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"'),
+    'An expired reset link never offers a password form');
+  await db.query("UPDATE campusbite_private.password_resets SET expires_at=clock_timestamp()+INTERVAL '30 minutes' WHERE user_id=4");
+  const linkOpened=await resetClient('reset_password.php?token='+resetToken);
+  let resetPage=await resetClient('reset_password.php');
+  check(linkOpened.status===303 && linkOpened.location==='reset_password.php' && resetPage.html.includes('id="recovery-password"')
+    && !resetPage.html.includes(resetToken) && (await db.query('SELECT used_at FROM campusbite_private.password_resets WHERE user_id=4')).rows[0].used_at===null,
+    'Opening a link removes the token from the address and markup without consuming it');
+  await db.query("UPDATE users SET email='changed@example.invalid' WHERE user_id=4");
+  check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"'),
+    'An email change invalidates a recovery link issued to the previous address');
+  await db.query("UPDATE users SET email='student@example.invalid' WHERE user_id=4");
+  await db.query('UPDATE users SET password_hash=$1 WHERE user_id=4',['fixture-changed-credential']);
+  check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"'),
+    'A password change after issuing the email invalidates the outstanding reset link');
+  await db.query('UPDATE users SET password_hash=$1 WHERE user_id=4',[beforeRecoveryHash]);
+  const recoveredPassword='Recovered fixture '+randomBytes(16).toString('hex');
+  for(const input of [
+    {csrf_token:'invalid',new_password:recoveredPassword,confirm_password:recoveredPassword},
+    {new_password:'short',confirm_password:'short'},
+    {new_password:recoveredPassword,confirm_password:'mismatch'},
+    {new_password:'x'.repeat(73),confirm_password:'x'.repeat(73)},
+    {new_password:password,confirm_password:password},
+    {'new_password[]':'array',confirm_password:recoveredPassword},
+  ]) {
+    const result=await resetClient('reset_password.php',{csrf_token:token(resetPage.html),...input});
+    assert.ok(result.html.includes('role="alert"'));
+    assert.ok(!result.html.includes(recoveredPassword));
+    assert.equal((await db.query('SELECT password_hash FROM users WHERE user_id=4')).rows[0].password_hash,beforeRecoveryHash);
+  }
+  check(true,'Invalid CSRF, short/oversized/array/mismatched/reused passwords cannot consume a reset link or alter credentials');
+  await db.exec('DELETE FROM campusbite_private.recovery_limits');
+  await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
+  const secondResetToken=(await inbox()).at(-1).text.match(/reset_password\.php\?token=([a-f0-9]{64})/)[1];
+  const oldStudent=client(); await signin(oldStudent,'student@example.invalid');
+  const resetDone=await resetClient('reset_password.php',{csrf_token:token(resetPage.html),new_password:recoveredPassword,confirm_password:recoveredPassword,user_id:'1',role_id:'1'});
+  check(resetDone.html.includes('Your password has been reset.') && !(await resetClient('reset_password.php')).html.includes('id="recovery-password"')
+    && (await oldStudent('dashboard.php')).status===302 && (await resetClient('dashboard.php')).status===302,
+    'A valid reset changes only its account, invalidates sessions and does not automatically sign in');
+  const newRecoveryHash=(await db.query('SELECT password_hash FROM users WHERE user_id=4')).rows[0].password_hash;
+  await resetClient('reset_password.php?token='+resetToken);
+  check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"'), 'A used reset link cannot be replayed');
+  await resetClient('reset_password.php?token='+secondResetToken);
+  check(!(await resetClient('reset_password.php')).html.includes('id="recovery-password"') && newRecoveryHash!==beforeRecoveryHash,
+    'A successful reset invalidates other outstanding links for the same account');
+  const recoveredLogin=client(); const recoveredLoginPage=await recoveredLogin('login.php');
+  const signedInRecovered=await recoveredLogin('login.php',{csrf_token:token(recoveredLoginPage.html),email:'student@example.invalid',password:recoveredPassword});
+  check(signedInRecovered.status===302 && signedInRecovered.location==='dashboard.php', 'The recovered password signs in through the normal login flow');
+  for(const [id,email,route,oldPassword] of [[1,'admin@example.invalid','admin_dashboard.php',password],[2,'staff@example.invalid','staff_dashboard.php',newStaffPassword]]) {
+    const existing=client(); let loginPage=await existing('login.php');
+    assert.equal((await existing('login.php',{csrf_token:token(loginPage.html),email,password:oldPassword})).status,302);
+    const request=client(); let page=await request('forgot_password.php');
+    await request('forgot_password.php',{csrf_token:token(page.html),email});
+    const raw=(await inbox()).filter(m=>m.to===email && m.subject==='Reset your CampusBite password').at(-1).text.match(/token=([a-f0-9]{64})/)[1];
+    await request('reset_password.php?token='+raw); page=await request('reset_password.php');
+    const fresh='Recovered role '+id+' '+randomBytes(16).toString('hex');
+    const saved=await request('reset_password.php',{csrf_token:token(page.html),new_password:fresh,confirm_password:fresh});
+    assert.ok(saved.html.includes('Your password has been reset.'));
+    assert.equal((await existing(route)).status,302);
+    loginPage=await request('login.php');
+    assert.equal((await request('login.php',{csrf_token:token(loginPage.html),email,password:fresh})).location,route);
+  }
+  check(true,'Admin and staff recover by email, old sessions are rejected and new passwords sign into their own dashboards');
+  check((await inbox()).some(m=>m.subject==='Your CampusBite password was reset')
+    && !(await inbox()).some(m=>m.text.includes(recoveredPassword)), 'Reset notifications never include the new password');
+  const mailboxPath=path.join(storageDir,'recovery-mail.jsonl');
+  await rm(mailboxPath); await mkdir(mailboxPath);
+  await db.exec('DELETE FROM campusbite_private.recovery_limits');
+  const tokensBeforeFailure=Number((await db.query('SELECT count(*) AS n FROM campusbite_private.password_resets')).rows[0].n);
+  const failedDelivery=await recovery('forgot_password.php',{csrf_token:recoveryCsrf,email:'student@example.invalid'});
+  check(generic(failedDelivery)===generic(known)
+    && Number((await db.query('SELECT count(*) AS n FROM campusbite_private.password_resets')).rows[0].n)===tokensBeforeFailure,
+    'A delivery failure keeps the same public response and removes the unsent reset token');
+  await rm(mailboxPath,{recursive:true});
   await student('logout.php'); assert.equal((await student('profile.php')).status,302);
   check(true,'Logout destroys the persistent session');
   const sessionCount=(await db.query('SELECT count(*) AS count FROM campusbite_private.sessions')).rows[0].count;

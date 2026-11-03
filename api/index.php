@@ -6,7 +6,8 @@ $route=$route==='' ? 'index.php' : $route;
 $allowed=['index.php','login.php','register.php','logout.php','dashboard.php','menu.php',
     'cart.php','checkout.php','orders.php','profile.php','staff_dashboard.php','staff_menu.php',
     'staff_profile.php','admin_dashboard.php','admin_users.php','admin_stores.php','admin_categories.php',
-    'admin_profile.php','favorites.php','profile_photo.php','payment_receipt.php','submit_payment.php','order_notifications.php'];
+    'admin_profile.php','favorites.php','profile_photo.php','payment_receipt.php','submit_payment.php','order_notifications.php',
+    'forgot_password.php','reset_password.php'];
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
@@ -48,7 +49,7 @@ try {
     session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
     session_set_save_handler(new CampusBiteSessions(cbCloudDatabase(),$secret),true);
     session_start();
-    if (isset($_SESSION['user_id'])) {
+    if (isset($_SESSION['user_id']) && !in_array($route,['forgot_password.php','reset_password.php'],true)) {
         require_once dirname(__DIR__).'/app/config/staff-password.php';
         $identityDatabase=cbApplicationDatabase();
         $identity=$identityDatabase->prepare('SELECT u.role_id,u.password_hash,r.role_name FROM users u JOIN roles r ON r.role_id=u.role_id WHERE u.user_id=? AND u.is_active=1');

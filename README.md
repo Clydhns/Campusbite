@@ -61,6 +61,47 @@ Notes:
 
 ## Still required before a preview
 
+### Email password recovery (2026-11-04)
+
+Apply `supabase/migrations/20261103170751_password_recovery.sql` before deploying
+the recovery code. It adds two RLS-protected tables in the private schema and does
+not change existing passwords, accounts, orders, or storage objects. Do not rerun
+older migrations on an already populated project.
+
+Set server-only Vercel Production variables `SMTP_USERNAME` (the dedicated Gmail
+sender) and `SMTP_PASSWORD` (its Google app password, not its account password).
+`APP_BASE_URL` defaults to `https://campusbite-orpin.vercel.app`; set it explicitly
+if the canonical HTTPS domain changes. Never use `NEXT_PUBLIC_` for credentials.
+Do not put production mail credentials in Preview deployments or local tests.
+
+Mail uses cURL SMTPS to `smtp.gmail.com:465`, with certificate validation enabled;
+the PHP runtime must support the `smtps` protocol. No extra package is required.
+Verify a real recovery email after deploying: local integration tests use a
+disposable inbox, not Gmail. Gmail delivery/SMTP support on Vercel and browser
+visual checks are not established by those local tests.
+
+All roles use 30-minute, single-use reset links. Only token hashes are stored in
+the reset table; the clean reset form uses a restricted token kept server-side
+in the private PHP session. Requesting a link does not change the password.
+Links become invalid if the account is deactivated or its email/password changes.
+Successful resets invalidate all existing sessions and outstanding links, and
+return the user to normal login. Existing administrator sessions must sign in
+again once after deployment to receive their new credential stamp.
+
+Limits: three requests per email/hour, a one-minute email cooldown, 20 requests
+per source address/hour, 200 eligible requests across the app/day, and 30 reset
+submissions per source address/hour. Limit identities are HMACs, not raw email/IP
+values. `REMOTE_ADDR` is used rather than trusting arbitrary forwarded headers;
+if the runtime shares a proxy address, its address limit is shared too. Recovery
+request responses are padded to six seconds (SMTP timeout four seconds) to
+reduce account-existence timing differences; unusually slow database operations
+can still exceed that floor. No account is locked or disabled by these limits.
+
+For local tests only, `CAMPUSBITE_TEST_MAILBOX` can point to a disposable JSONL
+inbox when `CAMPUSBITE_LOCAL_TEST=1` and `VERCEL` is absent. It contains real reset
+tokens for fixture accounts, so never enable it in a hosted deployment, commit
+its output, or use real user data. Do not log full reset URLs or SMTP debug data.
+
 1. Review and apply every file in `supabase/migrations/` in filename order in the empty
    Supabase project. These contain schema, reference dictionaries and the default food
    categories (Rice Meals, Snacks, Beverages, Desserts) only, not dummy accounts.

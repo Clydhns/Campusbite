@@ -57,6 +57,7 @@ function authEscape($value): string {
                     </button>
                 </div>
                 <p class="auth-password-help" id="login-password-help">Use your CampusBite password, not your school, email, or GCash password.</p>
+                <p class="auth-password-help"><a href="forgot_password.php">Forgot password?</a></p>
                 <button type="submit" class="login-button">Login</button>
             </form>
         </section>
