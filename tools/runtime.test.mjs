@@ -616,6 +616,18 @@ try {
     const page=await admin(route); assert.equal(page.status,200); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Admin dashboard, account management, stores and profile render');
+  await db.query('UPDATE menu_items SET image_path=$1 WHERE item_id=1',[fixturePhoto]);
+  const adminKitchenPage=await admin('admin_stores.php');
+  const adminKitchenCard=(html,id)=>html.split(`data-admin-store="${id}"`)[1].split('</a>')[0];
+  check(adminKitchenCard(adminKitchenPage.html,1).includes('class="cb-admin-kitchen-photo"')
+    && adminKitchenCard(adminKitchenPage.html,1).includes(fixturePhoto)
+    && adminKitchenCard(adminKitchenPage.html,1).includes('loading="lazy" decoding="async" width="640" height="300"')
+    && adminKitchenCard((await admin('admin_stores.php?store=2')).html,1).includes(fixturePhoto),
+    'Admin kitchen cards reuse the dashboard meal photo with lazy loading and stable dimensions in every store view');
+  check(adminKitchenCard(adminKitchenPage.html,2).includes('cb-admin-kitchen-placeholder')
+    && !adminKitchenCard(adminKitchenPage.html,2).includes(fixturePhoto),
+    'A kitchen without a suitable meal photo gets its own initial placeholder rather than another store image');
+  await db.exec('UPDATE menu_items SET image_path=NULL WHERE item_id=1');
   const registeredUsersPage=await admin('admin_users.php');
   check((await admin('admin_dashboard.php')).html.includes('href="admin_users.php#registered-accounts"')
     && registeredUsersPage.status===200 && registeredUsersPage.html.includes('id="registered-accounts"')

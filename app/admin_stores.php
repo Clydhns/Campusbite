@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 ob_start(); require_once __DIR__ . '/config/connection.php'; ob_end_clean();
 require_once __DIR__ . '/config/stores.php';
+require_once __DIR__ . '/config/favorites.php';
 if (!isset($_SESSION['user_id']) || ($_SESSION['role_name'] ?? '') !== 'Administrator') {
     header('Location: login.php'); exit;
 }
@@ -44,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $stores = $pdo->query('SELECT s.*,u.first_name,u.last_name,u.is_active AS staff_active,u.archived_at AS owner_archived,(SELECT COUNT(*) FROM menu_items m WHERE m.store_id=s.store_id AND m.archived_at IS NULL) AS food_count FROM stores s JOIN users u ON u.user_id=s.staff_user_id WHERE s.archived_at IS NULL ORDER BY s.store_name')->fetchAll();
+$storePhotos = cbFavoriteStorePhotos($pdo, array_column($stores, 'store_id'));
 $selected = max(0,(int) ($_GET['store'] ?? 0));
 $stmt = $pdo->prepare('SELECT m.*,s.store_name,c.category_name,' . cbFoodAvailabilitySql('m') . ' AS available_today FROM menu_items m JOIN stores s ON s.store_id=m.store_id JOIN categories c ON c.category_id=m.category_id WHERE s.archived_at IS NULL AND m.archived_at IS NULL AND (?=0 OR m.store_id=?) ORDER BY s.store_name,m.item_name');
 $stmt->execute([$selected,$selected]);
@@ -65,7 +67,13 @@ $orders = $stmt->fetchAll();
 <?php if ($error): ?><p class="cb-store-notice" role="alert"><?= cbEscape($error) ?></p><?php endif; ?>
 <section class="cb-store-section" id="admin-kitchens"><div class="cb-store-grid">
 <?php foreach ($stores as $store): ?><article class="cb-admin-kitchen-card">
-<a class="cb-store-tile" data-admin-store="<?= (int) $store['store_id'] ?>" href="admin_stores.php?store=<?= (int) $store['store_id'] ?>"><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['first_name'] . ' ' . $store['last_name']) ?></p><span><?= $store['owner_archived'] ? 'Account deleted' : ($store['staff_active'] && cbStoreAcceptingOrders($store) ? 'Open now' : 'Closed / inactive') ?> &middot; <?= (int) $store['food_count'] ?> foods</span><p class="cb-store-hours"><?= cbEscape(cbStoreHoursLabel($store)) ?></p></a>
+<a class="cb-store-tile" data-admin-store="<?= (int) $store['store_id'] ?>" href="admin_stores.php?store=<?= (int) $store['store_id'] ?>">
+<?php if ($photo = $storePhotos[(int) $store['store_id']] ?? ''): ?>
+<img class="cb-admin-kitchen-photo" src="<?= cbEscape($photo) ?>" alt="" loading="lazy" decoding="async" width="640" height="300">
+<?php else: ?>
+<span class="cb-admin-kitchen-photo cb-admin-kitchen-placeholder" aria-hidden="true"><?= cbEscape(strtoupper(substr($store['store_name'], 0, 1))) ?></span>
+<?php endif; ?>
+<div class="cb-admin-kitchen-copy"><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['first_name'] . ' ' . $store['last_name']) ?></p><span><?= $store['owner_archived'] ? 'Account deleted' : ($store['staff_active'] && cbStoreAcceptingOrders($store) ? 'Open now' : 'Closed / inactive') ?> &middot; <?= (int) $store['food_count'] ?> foods</span><p class="cb-store-hours"><?= cbEscape(cbStoreHoursLabel($store)) ?></p></div></a>
 <?php if ($store['owner_archived']): ?>
 <details class="cb-admin-kitchen-menu" name="store-options">
 <summary aria-label="Store options for <?= cbEscape($store['store_name']) ?>"><span aria-hidden="true">&#8942;</span></summary>

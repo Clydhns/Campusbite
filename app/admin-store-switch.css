@@ -7,8 +7,11 @@
 .cb-admin-store-status[data-state="error"] { color: #a61f2e; }
 #admin-kitchens { scroll-margin-top: 24px; }
 .cb-admin-kitchen-card { min-width: 0; position: relative; }
-.cb-admin-kitchen-card > .cb-store-tile { display: block; }
-.cb-admin-kitchen-card:has(.cb-admin-kitchen-menu) > .cb-store-tile { padding-right: 74px; }
+.cb-admin-kitchen-card > .cb-store-tile { display: block; padding: 0; overflow: hidden; height: 100%; box-sizing: border-box; }
+.cb-admin-kitchen-photo { display: block; width: 100%; height: auto; aspect-ratio: 32 / 15; object-fit: cover; background: #fff0df; }
+.cb-admin-kitchen-placeholder { display: grid; place-items: center; color: #a61f2e; font-size: 48px; font-weight: 900; background: linear-gradient(135deg, #ffe4cc, #fff8f0); }
+.cb-admin-kitchen-copy { padding: 24px 26px; }
+.cb-admin-kitchen-copy h3 { overflow-wrap: anywhere; }
 .cb-admin-kitchen-menu { position: absolute; top: 14px; right: 14px; z-index: 2; }
 .cb-admin-kitchen-menu[open] { z-index: 5; }
 .cb-admin-kitchen-menu > summary {
