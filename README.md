@@ -8,6 +8,16 @@ The XAMPP application remains unchanged in `C:/xampp/htdocs/campusbite`.
 `app/` is the isolated, converted application. No user database records,
 password hashes, food uploads, or payment receipts have been copied.
 
+### Account removal
+
+Apply `supabase/migrations/20261104194555_archive_accounts.sql` before deploying
+account removal. Delete archives student/store accounts, disables sign-in, hides
+them from Registered Users and Recent Users, and closes an owned store. Orders,
+payments, menus, and account records remain for historical references. Archived
+email addresses and account IDs stay reserved; this is not permanent data erasure.
+Administrator accounts cannot be removed through this action. Existing RLS and
+server-only database privileges remain unchanged.
+
 ## Chosen platform
 
 - GitHub for source control.

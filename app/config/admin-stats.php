@@ -5,7 +5,7 @@ function cbAdminStats(PDO $pdo): array {
     return $pdo->query("SELECT accounts.*,menu.*,sales.* FROM
         (SELECT COUNT(*) AS total_users,COUNT(*) FILTER (WHERE is_active=1) AS active_users,
             COUNT(*) FILTER (WHERE role_id=3) AS total_students,
-            COUNT(*) FILTER (WHERE role_id=2) AS total_staff FROM users) accounts
+            COUNT(*) FILTER (WHERE role_id=2) AS total_staff FROM users WHERE archived_at IS NULL) accounts
         CROSS JOIN (SELECT COUNT(*) AS total_menu_items,
             COUNT(*) FILTER (WHERE m.archived_at IS NULL AND (" . cbFoodAvailabilitySql('m') . ")=1) AS available_menu_items
             FROM menu_items m) menu

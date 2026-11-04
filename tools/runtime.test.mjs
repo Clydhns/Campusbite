@@ -46,7 +46,7 @@ try {
   // Seed the same Philippine calendar day used by the application connections.
   await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql','20261104194555_archive_accounts.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
@@ -1034,6 +1034,52 @@ try {
   const restorePage=await student('profile.php?edit=password');
   await student('profile.php',{action:'change_password',csrf_token:token(restorePage.html.match(/<form\b[^>]*class="profile-password-form"[\s\S]*?<\/form>/)[0]),current_password:newStudentPassword,new_password:password,confirm_password:password});
   check((await student('profile.php')).status===200 && await studentHash()!==beforeStudentChange,'Students can change their password again, restoring the fixture password');
+  }
+  {
+    const beforeArchive=await admin('admin_users.php');
+    const archiveCsrf=token(beforeArchive.html);
+    const accountRow=id=>beforeArchive.html.split(`data-account-id="${id}"`)[1].split('</tr>')[0];
+    check(accountRow(3).includes('data-delete-form') && accountRow(4).includes('data-delete-form')
+      && !accountRow(1).includes('data-delete-form'),
+      'Delete is available on active student and store accounts but not on the current administrator');
+    const accountAction=async(body,request=admin)=>JSON.parse((await request('admin_users.php',
+      {csrf_token:archiveCsrf,...body},{headers:{'X-CampusBite-Accounts':'1'}})).html);
+    for(const userId of ['1','999999']) {
+      check(!(await accountAction({action:'delete_user',user_id:userId})).ok,
+        'Removing the current administrator or a missing account is rejected: '+userId);
+    }
+    check(!(await accountAction({action:'delete_user',user_id:'4',csrf_token:'invalid'})).ok
+      && !(await accountAction({action:'delete_user',user_id:'3'},student)).ok,
+      'Account removal requires administrator access and a valid CSRF token');
+    const historyCounts=async()=>JSON.stringify((await db.query(`SELECT
+      (SELECT COUNT(*) FROM orders) AS orders,(SELECT COUNT(*) FROM order_items) AS items,
+      (SELECT COUNT(*) FROM payments) AS payments,(SELECT COUNT(*) FROM order_status_logs) AS logs,
+      (SELECT COUNT(*) FROM stores) AS stores,(SELECT COUNT(*) FROM menu_items) AS menus`)).rows[0]);
+    const beforeCounts=await historyCounts();
+    const archivedStudent=await accountAction({action:'delete_user',user_id:'4'});
+    const studentRecord=(await db.query('SELECT is_active,archived_at FROM users WHERE user_id=4')).rows[0];
+    check(archivedStudent.ok && archivedStudent.action==='deleted' && studentRecord.is_active===0 && studentRecord.archived_at
+      && !(await admin('admin_users.php')).html.includes('data-account-id="4"')
+      && (await student('dashboard.php')).status===302 && await historyCounts()===beforeCounts,
+      'Removing a student hides the directory entry and rejects the live session while retaining every history row');
+    check(!(await accountAction({action:'toggle_user',user_id:'4',is_active:'1'})).ok
+      && !(await accountAction({action:'delete_user',user_id:'4'})).ok,
+      'Stale Activate and repeated Delete requests cannot restore or modify a removed account');
+    await assert.rejects(db.exec('UPDATE users SET is_active=1 WHERE user_id=4'));
+    check(true,'The database prevents archived accounts from becoming active');
+    const archivedStore=await accountAction({action:'delete_user',user_id:'3'});
+    const storeRecord=(await db.query('SELECT s.is_open,u.is_active,u.archived_at FROM stores s JOIN users u ON u.user_id=s.staff_user_id WHERE u.user_id=3')).rows[0];
+    check(archivedStore.ok && storeRecord.is_open===0 && storeRecord.is_active===0 && storeRecord.archived_at
+      && !(await admin('admin_users.php')).html.includes('data-account-id="3"')
+      && (await other('staff_dashboard.php')).status===302 && await historyCounts()===beforeCounts,
+      'Removing a store account closes its kitchen, rejects staff access and preserves its menus, payments and orders');
+    check(!(await admin('admin_dashboard.php')).html.includes('other@example.invalid')
+      && (await admin('admin_dashboard.php?orders=all')).html.includes('<h2 tabindex="-1">All Orders</h2>'),
+      'Archived accounts disappear from Recent Users while admin order history still renders');
+    // Restore only disposable fixture accounts for the unrelated tests that follow.
+    await db.exec('UPDATE users SET archived_at=NULL,is_active=1 WHERE user_id IN (3,4); UPDATE stores SET is_open=1 WHERE staff_user_id=3');
+    await signin(student,'student@example.invalid');
+    await signin(other,'other@example.invalid');
   }
   await db.exec('UPDATE public.users SET is_active=0 WHERE user_id=3');
   assert.equal((await other('staff_dashboard.php')).status,302);

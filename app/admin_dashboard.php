@@ -124,6 +124,7 @@ try {
         FROM users u
         INNER JOIN roles r
             ON u.role_id = r.role_id
+        WHERE u.archived_at IS NULL
         ORDER BY u.created_at DESC
         LIMIT 6
     ");

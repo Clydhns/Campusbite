@@ -58,7 +58,6 @@
                                     <?php endif; ?>
                                 </form>
                                 <?php if (
-                                    !$user["is_active"] &&
                                     in_array(
                                         (int) $user["role_id"],
                                         [2, 3],

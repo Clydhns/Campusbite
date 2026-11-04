@@ -215,10 +215,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     UPDATE users
                     SET is_active = :active
                     WHERE user_id = :id
+                      AND archived_at IS NULL
                 ");
                 $stmt->execute(["id" => $user_id, "active" => (int) $desiredActive]);
 
-                $check = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ?");
+                $check = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ? AND archived_at IS NULL");
                 $check->execute([$user_id]);
                 if (!$check->fetchColumn()) {
                     throw new Exception("No matching user found. Refresh the account list.");
@@ -228,7 +229,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $actionUserId = $user_id;
             }
 
-            // DELETE STAFF OR STUDENT ACCOUNT
+            // Remove access and directory visibility without deleting order history.
             elseif ($action === "delete_user") {
                 $user_id = (int) ($_POST["user_id"] ?? 0);
 
@@ -238,11 +239,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     );
                 }
 
+                $pdo->beginTransaction();
                 $target = $pdo->prepare("
                     SELECT user_id, role_id, first_name, last_name
                     FROM users
                     WHERE user_id = :id
+                      AND archived_at IS NULL
                     LIMIT 1
+                    FOR UPDATE
                 ");
                 $target->execute(["id" => $user_id]);
                 $targetUser = $target->fetch(PDO::FETCH_ASSOC);
@@ -257,30 +261,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
 
                 if ((int) $targetUser["role_id"] === 2) {
-                    $ownedStore = $pdo->prepare("SELECT store_id FROM stores WHERE staff_user_id=?");
-                    $ownedStore->execute([$user_id]);
-                    if ($ownedStore->fetchColumn()) throw new Exception("This staff account owns a store. Deactivate it to preserve its menus and orders.");
-                }
-                if ((int) $targetUser["role_id"] === 3) {
-                    $orders = $pdo->prepare("
-                        SELECT 1
-                        FROM orders
-                        WHERE student_id = :id
-                        LIMIT 1
-                    ");
-                    $orders->execute(["id" => $user_id]);
-
-                    if ($orders->fetchColumn()) {
-                        throw new Exception(
-                            "This student has order history and cannot be deleted. Deactivate the account to preserve its records."
-                        );
-                    }
+                    $pdo->prepare('UPDATE stores SET is_open=0 WHERE staff_user_id=?')->execute([$user_id]);
                 }
 
                 $delete = $pdo->prepare("
-                    DELETE FROM users
+                    UPDATE users SET is_active=0, archived_at=clock_timestamp()
                     WHERE user_id = :id
                       AND role_id IN (2, 3)
+                      AND archived_at IS NULL
                 ");
                 $delete->execute(["id" => $user_id]);
 
@@ -290,7 +278,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     );
                 }
 
-                $success = "Account deleted successfully.";
+                $pdo->commit();
+                $success = "Account removed. Access is disabled and order history has been preserved.";
                 $actionType = "deleted";
                 $actionUserId = $user_id;
             }
@@ -410,6 +399,7 @@ $users = $pdo->query("
            r.role_name
     FROM users u
     INNER JOIN roles r ON u.role_id = r.role_id
+    WHERE u.archived_at IS NULL
     ORDER BY u.user_id DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1126,8 +1116,9 @@ tr.account-removing {
         aria-describedby="delete-confirmation-message">
     <h2 id="delete-confirmation-title">Delete this account?</h2>
     <p id="delete-confirmation-message">
-        Permanently delete <strong id="delete-user-name"></strong>?
-        This action cannot be undone.
+        Remove <strong id="delete-user-name"></strong> from Registered Users?
+        Sign-in access will be disabled. A store account's kitchen will close.
+        Existing orders, payments, and menus will be preserved for history.
     </p>
     <div class="confirmation-actions">
         <button type="button" class="confirmation-cancel"
