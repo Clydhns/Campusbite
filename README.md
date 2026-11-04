@@ -12,7 +12,8 @@ password hashes, food uploads, or payment receipts have been copied.
 
 Apply `supabase/migrations/20261104194555_archive_accounts.sql` before deploying
 account removal. Delete archives student/store accounts, disables sign-in, hides
-them from Registered Users and Recent Users, and closes an owned store. Orders,
+them from Registered Users and Recent Users, and closes an owned store. Accounts
+must be deactivated before Delete is shown or accepted by the server. Orders,
 payments, menus, and account records remain for historical references. Archived
 email addresses and account IDs stay reserved; this is not permanent data erasure.
 Administrator accounts cannot be removed through this action. Existing RLS and

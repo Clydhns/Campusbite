@@ -241,7 +241,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 $pdo->beginTransaction();
                 $target = $pdo->prepare("
-                    SELECT user_id, role_id, first_name, last_name
+                    SELECT user_id, role_id, first_name, last_name, is_active
                     FROM users
                     WHERE user_id = :id
                       AND archived_at IS NULL
@@ -258,6 +258,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     throw new Exception(
                         "Only staff or student accounts can be deleted."
                     );
+                }
+
+                if ((int) $targetUser["is_active"] !== 0) {
+                    throw new Exception("Deactivate this account before deleting it.");
                 }
 
                 if ((int) $targetUser["role_id"] === 2) {

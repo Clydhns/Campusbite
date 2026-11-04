@@ -1039,17 +1039,28 @@ try {
     const beforeArchive=await admin('admin_users.php');
     const archiveCsrf=token(beforeArchive.html);
     const accountRow=id=>beforeArchive.html.split(`data-account-id="${id}"`)[1].split('</tr>')[0];
-    check(accountRow(3).includes('data-delete-form') && accountRow(4).includes('data-delete-form')
+    check(!accountRow(3).includes('data-delete-form') && !accountRow(4).includes('data-delete-form')
       && !accountRow(1).includes('data-delete-form'),
-      'Delete is available on active student and store accounts but not on the current administrator');
+      'Delete is hidden for active student/store accounts and the current administrator');
     const accountAction=async(body,request=admin)=>JSON.parse((await request('admin_users.php',
       {csrf_token:archiveCsrf,...body},{headers:{'X-CampusBite-Accounts':'1'}})).html);
+    for (const userId of ['3','4']) {
+      const refused=await accountAction({action:'delete_user',user_id:userId});
+      const inactive=await accountAction({action:'toggle_user',user_id:userId,is_active:'0'});
+      const active=await accountAction({action:'toggle_user',user_id:userId,is_active:'1'});
+      check(!refused.ok && refused.message.includes('Deactivate')
+        && inactive.ok && inactive.rowHtml.includes('data-delete-form')
+        && active.ok && !active.rowHtml.includes('data-delete-form')
+        && !(await accountAction({action:'delete_user',user_id:userId})).ok,
+        'Deactivation reveals Delete; reactivation hides it and stale delete requests are rejected: '+userId);
+      await accountAction({action:'toggle_user',user_id:userId,is_active:'0'});
+    }
     for(const userId of ['1','999999']) {
       check(!(await accountAction({action:'delete_user',user_id:userId})).ok,
         'Removing the current administrator or a missing account is rejected: '+userId);
     }
     check(!(await accountAction({action:'delete_user',user_id:'4',csrf_token:'invalid'})).ok
-      && !(await accountAction({action:'delete_user',user_id:'3'},student)).ok,
+      && !(await accountAction({action:'delete_user',user_id:'3'},staff)).ok,
       'Account removal requires administrator access and a valid CSRF token');
     const historyCounts=async()=>JSON.stringify((await db.query(`SELECT
       (SELECT COUNT(*) FROM orders) AS orders,(SELECT COUNT(*) FROM order_items) AS items,
