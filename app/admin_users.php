@@ -921,8 +921,8 @@ tr.account-removing {
     <!-- CREATE STAFF -->
     <section class="card">
         <div class="card-header">
-            <h2>Create Canteen Staff Account</h2>
-            <p>Register a new Campusbite staff member.</p>
+            <h2>Create a store account</h2>
+            <p>Register a new CampusBite store account.</p>
         </div>
 
         <div class="card-content">
@@ -1014,7 +1014,7 @@ tr.account-removing {
 
                 <div class="submit-area">
                     <button class="btn" type="submit">
-                        Create Staff Account
+                        Create store account
                     </button>
                 </div>
             </form>
