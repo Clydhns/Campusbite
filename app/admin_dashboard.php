@@ -955,6 +955,7 @@ function paymentClass($status)
     <link rel="stylesheet" href="student-navbar.css?v=1">
     <link rel="stylesheet" href="admin-navbar.css?v=<?= (int) filemtime(__DIR__ . '/admin-navbar.css') ?>">
     <link rel="stylesheet" href="admin-ui.css?v=<?= (int) filemtime(__DIR__ . '/admin-ui.css') ?>">
+    <script src="admin-orders.js?v=<?= (int) filemtime(__DIR__ . '/admin-orders.js') ?>" defer></script>
 </head>
 
 <body class="cb-commerce cb-admin">
@@ -1322,12 +1323,13 @@ function paymentClass($status)
 
                 <!-- RECENT ORDERS -->
 
+                <p id="admin-orders-status" class="cb-admin-sr-only" role="status" aria-live="polite"></p>
                 <div class="panel" id="admin-orders">
 
                     <div class="panel-header">
 
                         <div>
-                            <h2><?= $showAllOrders ? 'All Orders' : 'Recent Orders' ?></h2>
+                            <h2 tabindex="-1"><?= $showAllOrders ? 'All Orders' : 'Recent Orders' ?></h2>
                         </div>
 
                         <a

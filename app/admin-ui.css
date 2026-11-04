@@ -120,6 +120,7 @@
     line-height: 1.5;
 }
 .cb-admin-users .action-btn:disabled { opacity: .65; cursor: wait; }
+.cb-admin-dashboard .topbar { justify-content: flex-start; }
 .cb-admin-dashboard .admin-profile {
     min-width: 0;
     max-width: 100%;
@@ -130,6 +131,12 @@
 .cb-admin-dashboard .profile-text { display: block; min-width: 0; }
 .cb-admin-dashboard .profile-text strong { overflow-wrap: anywhere; }
 #admin-orders { scroll-margin-top: 24px; }
+#admin-orders[aria-busy="true"] { opacity: .65; cursor: progress; }
+#admin-orders.is-updated { animation: admin-orders-enter 180ms ease-out; }
+@keyframes admin-orders-enter {
+    from { opacity: .5; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 .cb-admin-dashboard .admin-order-pagination {
     display: flex;
     align-items: center;
@@ -167,6 +174,7 @@
     .cb-admin .confirmation-actions { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
+    #admin-orders.is-updated { animation: none; }
     .cb-admin input,
     .cb-admin .btn,
     .cb-admin .confirmation-delete { transition: none; }

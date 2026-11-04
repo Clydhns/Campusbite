@@ -624,7 +624,7 @@ try {
   const allAdminOrders=await admin('admin_dashboard.php?orders=all');
   const adminOrderCount=Number((await db.query('SELECT COUNT(*) AS count FROM orders')).rows[0].count);
   const orderHistoryTable=allAdminOrders.html.split('id="admin-orders"')[1].split('</table>')[0];
-  check(allAdminOrders.status===200 && allAdminOrders.html.includes('<h2>All Orders</h2>')
+  check(allAdminOrders.status===200 && allAdminOrders.html.includes('<h2 tabindex="-1">All Orders</h2>')
     && (orderHistoryTable.match(/class="order-number"/g) || []).length===Math.min(25,adminOrderCount)
     && adminDashboardHtml.includes('href="admin_dashboard.php?orders=all#admin-orders"')
     && !adminDashboardHtml.includes('href="staff_dashboard.php"'),
