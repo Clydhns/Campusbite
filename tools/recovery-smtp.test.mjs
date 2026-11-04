@@ -53,13 +53,13 @@ for(const mode of ['accept','reject','timeout']) {
       assert.match(delivered,/Content-Type: multipart\/alternative/);
       assert.match(delivered,/Content-Type: text\/plain/);
       assert.match(delivered,/Content-Type: text\/html/);
-      assert.match(delivered,/Content-Type: image\/png/);
-      assert.match(delivered,/Content-ID: <campusbite-logo>/);
-      assert.match(delivered,/Content-Disposition: inline/);
+      assert.doesNotMatch(delivered,/Content-Type: image\//);
+      assert.doesNotMatch(delivered,/Content-ID:|Content-Disposition: (?:inline|attachment)/);
       const bodies=[...delivered.matchAll(/Content-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+?)(?=\r\n--)/g)]
         .map(match=>Buffer.from(match[1].replace(/\s/g,''),'base64').toString());
       assert.ok(bodies.some(body=>body.includes('Fixture message only.')));
       assert.ok(bodies.some(body=>body.includes('>Reset password</a>')));
+      assert.ok(bodies.some(body=>body.includes('https://campusbite-orpin.vercel.app/assets/campusbite-email.png?v=')));
       assert.match(delivered,/From: CampusBite <sender@example.invalid>/);
     }
     if(mode==='reject') assert.equal(result.smtp_status,535);

@@ -47,8 +47,5 @@ function cbSetRecoveryMailBody(\PHPMailer\PHPMailer\PHPMailer $mail, string $tex
     $mail->Body = $html ?? $text;
     if ($html !== null) {
         $mail->AltBody = $text;
-        if (str_contains($html, 'cid:campusbite-logo')) {
-            $mail->addEmbeddedImage(__DIR__ . '/../assets/campusbite-email.png', 'campusbite-logo', 'campusbite.png', 'base64', 'image/png');
-        }
     }
 }

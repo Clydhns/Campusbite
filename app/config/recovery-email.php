@@ -1,6 +1,8 @@
 <?php
 function cbRecoveryEmailHtml(#[SensitiveParameter] string $url, bool $changed=false): string {
     $link=htmlspecialchars($url,ENT_QUOTES,'UTF-8');
+    $logo='https://campusbite-orpin.vercel.app/assets/campusbite-email.png?v='
+        . substr(hash_file('sha256', __DIR__ . '/../assets/campusbite-email.png'), 0, 12);
     $title=$changed ? 'Your password is updated.' : 'A fresh start for your account.';
     $intro=$changed ? 'Your CampusBite password was changed. All existing sessions have been signed out.'
         : 'We received a request to reset your CampusBite password. Use the button below to choose a new one.';
@@ -17,7 +19,7 @@ function cbRecoveryEmailHtml(#[SensitiveParameter] string $url, bool $changed=fa
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #f1d5bf;border-radius:20px;">
 <tr><td style="padding:30px 28px 24px;border-bottom:1px solid #f1d5bf;">
 <table role="presentation" cellspacing="0" cellpadding="0"><tr>
-<td style="width:64px;height:64px;text-align:center;vertical-align:middle;"><img src="cid:campusbite-logo" width="64" height="64" alt="CampusBite logo" style="display:block;border:0;width:64px;height:64px;"></td>
+<td style="width:48px;height:48px;text-align:center;vertical-align:middle;"><img src="$logo" width="48" height="48" alt="" role="presentation" style="display:block;border:0;width:48px;height:48px;"></td>
 <td style="padding-left:12px;font-size:26px;font-weight:bold;letter-spacing:-1px;color:#e63946;">CampusBite</td>
 </tr></table></td></tr>
 <tr><td style="padding:28px;">

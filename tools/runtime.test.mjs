@@ -1263,10 +1263,11 @@ try {
   const mail=(await inbox())[0];
   check(mail.html.includes('>Reset password</a>') && mail.html.includes('VALID FOR 15 MINUTES')
     && mail.html.includes('role="presentation"') && mail.html.includes('#e63946')
-    && !mail.html.replace(/<[^>]*>/g,'').includes('token=') && !/<script\b|<img\b[^>]*src="https?:/i.test(mail.html)
-    && mail.html.includes('src="cid:campusbite-logo"') && !mail.html.includes('>CB</td>')
+    && !mail.html.replace(/<[^>]*>/g,'').includes('token=') && !/<script\b|cid:/i.test(mail.html)
+    && /src="https:\/\/campusbite-orpin\.vercel\.app\/assets\/campusbite-email\.png\?v=[a-f0-9]{12}"/.test(mail.html)
+    && !mail.html.includes('>CB</td>')
     && mail.text.includes('reset_password.php?token='),
-    'Recovery email has a branded button, expiry notice and plain-text fallback without a visible token URL or remote images');
+    'Recovery email uses one static hosted logo, a branded button and plain-text fallback without inline attachments or a visible token URL');
   const resetToken=mail.text.match(/reset_password\.php\?token=([a-f0-9]{64})/)[1];
   const resets=(await db.query('SELECT * FROM campusbite_private.password_resets WHERE user_id=4')).rows;
   const lifetime=(await db.query("SELECT EXTRACT(EPOCH FROM (expires_at-clock_timestamp())) AS seconds FROM campusbite_private.password_resets WHERE user_id=4")).rows[0].seconds;

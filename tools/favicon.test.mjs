@@ -39,7 +39,8 @@ test('Shared website and recovery email branding use the chef artwork instead of
   assert.match(brand, /<img[^>]*class="cb-brand-badge cb-brand-icon"[^>]*src="assets\/campusbite-logo\.svg/);
   assert.match(brand, /alt="" width="64" height="64"/);
   const email=(await read('app/config/recovery-email.php')).toString();
-  assert.match(email, /src="cid:campusbite-logo"/);
+  assert.match(email, /https:\/\/campusbite-orpin\.vercel\.app\/assets\/campusbite-email\.png/);
+  assert.doesNotMatch(email, /cid:/);
   assert.doesNotMatch(email, />CB<\/td>/);
   const png=await read('app/assets/campusbite-email.png');
   assert.deepEqual(png.subarray(0,8),pngSignature);
