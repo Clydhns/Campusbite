@@ -622,6 +622,13 @@ try {
     && registeredUsersPage.html.includes('id="registered-users-title">Registered Users'),
     'Recent Users View All links directly to the registered-users list instead of the account creation forms');
   const adminDashboardHtml=(await admin('admin_dashboard.php')).html;
+  const mainStatsHtml=adminDashboardHtml.split('<section class="stats-grid">')[1].split('</section>')[0];
+  const secondaryStatsHtml=adminDashboardHtml.split('<section class="secondary-grid">')[1].split('</section>')[0];
+  check(!mainStatsHtml.includes('stat-icon')
+    && secondaryStatsHtml.indexOf("Today's Orders")<secondaryStatsHtml.indexOf('Preparing')
+    && secondaryStatsHtml.indexOf('Preparing')<secondaryStatsHtml.indexOf('Cancelled')
+    && secondaryStatsHtml.indexOf('Cancelled')<secondaryStatsHtml.indexOf("Today's Sales"),
+    'Admin statistics are icon-free and Today\'s Sales follows Orders, Preparing and Cancelled in the rightmost card');
   const quickActionsHtml=adminDashboardHtml.split('class="section admin-quick-actions"')[1].split('</section>')[0];
   check(quickActionsHtml.includes('id="admin-quick-actions-title">Quick Actions')
     && !quickActionsHtml.includes('action-icon')

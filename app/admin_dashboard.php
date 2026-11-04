@@ -1071,10 +1071,6 @@ function paymentClass($status)
 
                     </div>
 
-                    <div class="stat-icon icon-blue">
-                        👥
-                    </div>
-
                 </div>
 
 
@@ -1094,10 +1090,6 @@ function paymentClass($status)
                             <?php echo number_format($availableMenuItems); ?> available
                         </span>
 
-                    </div>
-
-                    <div class="stat-icon icon-green">
-                        🍔
                     </div>
 
                 </div>
@@ -1121,10 +1113,6 @@ function paymentClass($status)
 
                     </div>
 
-                    <div class="stat-icon icon-orange">
-                        📦
-                    </div>
-
                 </div>
 
 
@@ -1144,10 +1132,6 @@ function paymentClass($status)
                             From completed orders
                         </span>
 
-                    </div>
-
-                    <div class="stat-icon icon-purple">
-                        💰
                     </div>
 
                 </div>
@@ -1175,19 +1159,6 @@ function paymentClass($status)
                 <div class="mini-card">
 
                     <div class="mini-card-title">
-                        Today's Sales
-                    </div>
-
-                    <div class="mini-card-value green">
-                        ₱<?php echo number_format($todaySales, 2); ?>
-                    </div>
-
-                </div>
-
-
-                <div class="mini-card">
-
-                    <div class="mini-card-title">
                         Preparing
                     </div>
 
@@ -1206,6 +1177,18 @@ function paymentClass($status)
 
                     <div class="mini-card-value red">
                         <?php echo number_format($cancelledOrders); ?>
+                    </div>
+
+                </div>
+
+                <div class="mini-card">
+
+                    <div class="mini-card-title">
+                        Today's Sales
+                    </div>
+
+                    <div class="mini-card-value green">
+                        ₱<?php echo number_format($todaySales, 2); ?>
                     </div>
 
                 </div>
