@@ -4,7 +4,7 @@ const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const source = readFileSync(require('node:path').join(__dirname, '../admin-users.js'), 'utf8');
 
-function setup({ kind = 'toggle', result, deferred } = {}) {
+function setup({ kind = 'toggle', result, deferred, savedScroll = null, hash = '' } = {}) {
     const state = { calls: [], events: {}, stored: [], scroll: null };
     const classes = () => ({ add() {}, remove() {}, toggle() {} });
     const button = { textContent: kind === 'delete' ? 'Delete' : 'Deactivate', disabled: false, focus() {} };
@@ -41,12 +41,12 @@ function setup({ kind = 'toggle', result, deferred } = {}) {
         addEventListener(type, handler) { state.submitHandler = handler; }
     };
     state.result = result || { ok: true, adminId: 1, action: kind === 'delete' ? 'deleted' : 'updated', userId: 3, rowHtml: '<tr></tr>', counts: { Students: kind === 'delete' ? 0 : 1 }, message: 'Saved.' };
-    const location = { href: 'http://localhost/campusbite/admin_users.php' };
+    const location = { href: 'http://localhost/campusbite/admin_users.php' + hash, hash };
     vm.runInNewContext(source, {
         document, location, AbortController,
-        window: { fetch: true, addEventListener() {}, scrollY: 1800, scrollX: 60, innerHeight: 700,
+        window: { fetch: true, addEventListener(type, handler) { state.events[type] = handler; }, scrollY: 1800, scrollX: 60, innerHeight: 700,
             matchMedia: () => ({ matches: true }), scrollTo(value) { state.scroll = value; } },
-        sessionStorage: { getItem: () => null, removeItem() {}, setItem(...args) { state.stored.push(args); } },
+        sessionStorage: { getItem: () => savedScroll, removeItem() {}, setItem(...args) { state.stored.push(args); } },
         setTimeout: () => 1, clearTimeout() {},
         FormData: class { constructor(value) { this.fields = value.fields; } },
         DOMParser: class { parseFromString() { return { querySelector: () => incoming }; } },
@@ -64,6 +64,19 @@ function setup({ kind = 'toggle', result, deferred } = {}) {
     return Object.assign(state, { button, row, notice, count, name });
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('Registered Users navigation is not overridden by an old saved scroll position', () => {
+    const state = setup({ savedScroll: '1800', hash: '#registered-accounts' });
+    assert.equal(state.events.load, undefined);
+    assert.equal(state.scroll, null);
+});
+
+test('Native form reloads still restore their saved position without a second smooth scroll', () => {
+    const state = setup({ savedScroll: '1800' });
+    state.events.load();
+    assert.equal(state.scroll.top, 1800);
+    assert.equal(state.scroll.behavior, 'instant');
+});
 
 test('status update posts to the page URL and updates only the row without storing a reload position', async () => {
     const state = setup();

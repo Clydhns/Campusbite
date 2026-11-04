@@ -456,7 +456,7 @@ if ($isAccountRequest) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="cb-admin-users-page">
 <head>
     <?php require __DIR__ . '/components/favicon.php'; ?>
 <meta charset="UTF-8">

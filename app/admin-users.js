@@ -3,8 +3,8 @@
     try {
         const saved = sessionStorage.getItem(scrollStorageKey);
         sessionStorage.removeItem(scrollStorageKey);
-        if (saved !== null && Number.isFinite(Number(saved))) {
-            window.addEventListener('load', () => window.scrollTo(0, Number(saved)), { once: true });
+        if (!location.hash && saved !== null && Number.isFinite(Number(saved))) {
+            window.addEventListener('load', () => window.scrollTo({ top: Number(saved), behavior: 'instant' }), { once: true });
         }
     } catch (_) { /* Native forms also work when browser storage is unavailable. */ }
 
