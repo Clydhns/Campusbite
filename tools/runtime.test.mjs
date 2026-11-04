@@ -624,6 +624,9 @@ try {
   const adminDashboardHtml=(await admin('admin_dashboard.php')).html;
   const mainStatsHtml=adminDashboardHtml.split('<section class="stats-grid">')[1].split('</section>')[0];
   const secondaryStatsHtml=adminDashboardHtml.split('<section class="secondary-grid">')[1].split('</section>')[0];
+  check(adminDashboardHtml.indexOf('<section class="secondary-grid">')<adminDashboardHtml.indexOf('<section class="stats-grid">')
+    && (adminDashboardHtml.match(/<section class="secondary-grid">/g) || []).length===1,
+    'Daily admin statistics appear above overall totals in both desktop layout and mobile reading order');
   check(!mainStatsHtml.includes('stat-icon')
     && secondaryStatsHtml.indexOf("Today's Orders")<secondaryStatsHtml.indexOf('Preparing')
     && secondaryStatsHtml.indexOf('Preparing')<secondaryStatsHtml.indexOf('Cancelled')

@@ -1049,7 +1049,28 @@ function paymentClass($status)
             </section>
 
 
-            <!-- MAIN STATISTICS -->
+            <!-- TODAY'S STATISTICS -->
+
+            <section class="secondary-grid">
+                <div class="mini-card">
+                    <div class="mini-card-title">Today's Orders</div>
+                    <div class="mini-card-value blue"><?php echo number_format($todayOrders); ?></div>
+                </div>
+                <div class="mini-card">
+                    <div class="mini-card-title">Preparing</div>
+                    <div class="mini-card-value orange"><?php echo number_format($preparingOrders); ?></div>
+                </div>
+                <div class="mini-card">
+                    <div class="mini-card-title">Cancelled</div>
+                    <div class="mini-card-value red"><?php echo number_format($cancelledOrders); ?></div>
+                </div>
+                <div class="mini-card">
+                    <div class="mini-card-title">Today's Sales</div>
+                    <div class="mini-card-value green">₱<?php echo number_format($todaySales, 2); ?></div>
+                </div>
+            </section>
+
+            <!-- OVERALL STATISTICS -->
 
             <section class="stats-grid">
 
@@ -1132,63 +1153,6 @@ function paymentClass($status)
                             From completed orders
                         </span>
 
-                    </div>
-
-                </div>
-
-            </section>
-
-
-            <!-- SECONDARY STATISTICS -->
-
-            <section class="secondary-grid">
-
-                <div class="mini-card">
-
-                    <div class="mini-card-title">
-                        Today's Orders
-                    </div>
-
-                    <div class="mini-card-value blue">
-                        <?php echo number_format($todayOrders); ?>
-                    </div>
-
-                </div>
-
-
-                <div class="mini-card">
-
-                    <div class="mini-card-title">
-                        Preparing
-                    </div>
-
-                    <div class="mini-card-value orange">
-                        <?php echo number_format($preparingOrders); ?>
-                    </div>
-
-                </div>
-
-
-                <div class="mini-card">
-
-                    <div class="mini-card-title">
-                        Cancelled
-                    </div>
-
-                    <div class="mini-card-value red">
-                        <?php echo number_format($cancelledOrders); ?>
-                    </div>
-
-                </div>
-
-                <div class="mini-card">
-
-                    <div class="mini-card-title">
-                        Today's Sales
-                    </div>
-
-                    <div class="mini-card-value green">
-                        ₱<?php echo number_format($todaySales, 2); ?>
                     </div>
 
                 </div>
