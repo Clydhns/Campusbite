@@ -1278,24 +1278,24 @@ function paymentClass($status)
                     </div>
 
 
-                    <!-- MENU -->
+                    <!-- STORES -->
 
                     <div class="action-card">
 
                         <h3>
-                            Manage Menu
+                            Manage Stores
                         </h3>
 
                         <p>
-                            View menu items and manage current menu
-                            food availability.
+                            Review campus kitchens, their food menus,
+                            availability, and recent orders.
                         </p>
 
                         <a
-                            href="staff_menu.php"
+                            href="admin_stores.php"
                             class="action-button"
                         >
-                            Open Menu
+                            Open Stores
                         </a>
 
                     </div>

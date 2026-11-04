@@ -59,3 +59,14 @@ nav.cb-admin-navbar .cb-admin-caption {
     nav.cb-admin-navbar .cb-admin-brand-group { flex-wrap: wrap; }
     nav.cb-admin-navbar .cb-admin-identity { padding-left: 0; border-left: 0; }
 }
+/* Native same-origin transitions keep real links, sessions and page scripts intact. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: cb-admin-page-out 120ms ease-out both; }
+::view-transition-new(root) { animation: cb-admin-page-in 160ms ease-out both; }
+@keyframes cb-admin-page-out { to { opacity: 0; } }
+@keyframes cb-admin-page-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+    @view-transition { navigation: none; }
+    ::view-transition-old(root),
+    ::view-transition-new(root) { animation: none; }
+}

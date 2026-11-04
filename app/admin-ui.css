@@ -134,7 +134,19 @@
 }
 .cb-admin-dashboard .admin-quick-actions .action-card h3 { line-height: 1.4; }
 .cb-admin-dashboard .admin-quick-actions .action-card p { margin-bottom: 20px; }
-.cb-admin-dashboard .admin-quick-actions .action-button { margin-top: auto; }
+.cb-admin-dashboard .admin-quick-actions .action-button {
+    margin-top: auto;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+.cb-admin-dashboard .admin-quick-actions .action-button:hover { transform: translateY(-1px); }
+.cb-admin-dashboard .admin-quick-actions .action-button:active { transform: translateY(0); }
+.cb-admin-dashboard .admin-quick-actions .action-button:focus-visible {
+    outline: 2px solid #a61f2e;
+    outline-offset: 4px;
+}
 .cb-admin-dashboard .admin-profile {
     min-width: 0;
     max-width: 100%;
@@ -189,6 +201,7 @@
     .cb-admin .confirmation-actions { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
+    .cb-admin-dashboard .admin-quick-actions .action-button { transition: none; transform: none; }
     #admin-orders.is-updated { animation: none; }
     .cb-admin input,
     .cb-admin .btn,
