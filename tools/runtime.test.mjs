@@ -137,7 +137,7 @@ try {
     && introduction.html.includes('class="intro-explore" href="#about"')
     && introduction.html.includes('class="returning-user"')
     && introduction.html.includes('class="password-note"')
-    && !/<script\b|<img\b|<form\b/i.test(introduction.html),
+    && !/<script\b|<img\b|<form\b/i.test(introduction.html.replace(/<img\b[^>]*src="assets\/campusbite-logo\.svg\?v=\d+"[^>]*>/g,'')),
     'Centered public landing has hidden decorative lettering, one primary hero action and account/privacy links without extra scripts, photos or forms');
   const publicLogin=await anon('login.php');
   const loginView=publicLogin.html.match(/<section\b[^>]*id="login-view"[\s\S]*?<\/section>/)?.[0] || '';
@@ -1263,7 +1263,8 @@ try {
   const mail=(await inbox())[0];
   check(mail.html.includes('>Reset password</a>') && mail.html.includes('VALID FOR 15 MINUTES')
     && mail.html.includes('role="presentation"') && mail.html.includes('#e63946')
-    && !mail.html.replace(/<[^>]*>/g,'').includes('token=') && !/<script\b|<img\b/i.test(mail.html)
+    && !mail.html.replace(/<[^>]*>/g,'').includes('token=') && !/<script\b|<img\b[^>]*src="https?:/i.test(mail.html)
+    && mail.html.includes('src="cid:campusbite-logo"') && !mail.html.includes('>CB</td>')
     && mail.text.includes('reset_password.php?token='),
     'Recovery email has a branded button, expiry notice and plain-text fallback without a visible token URL or remote images');
   const resetToken=mail.text.match(/reset_password\.php\?token=([a-f0-9]{64})/)[1];

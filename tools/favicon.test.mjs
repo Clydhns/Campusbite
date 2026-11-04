@@ -13,6 +13,9 @@ test('CampusBite icons have valid scalable and raster formats', async () => {
   const svg = (await read('app/favicon.svg')).toString();
   assert.match(svg, /viewBox="0 0 64 64"/);
   assert.match(svg, /CampusBite CB logo/);
+  const artwork=(await read('app/assets/campusbite-logo.svg')).toString();
+  assert.ok(svg.includes(artwork.replace('<svg ', '<svg x="3" y="3" width="58" height="58" ')));
+  assert.doesNotMatch(svg, /stroke="#bf2634"/);
   assert.doesNotMatch(svg, /<script|(?:href|src)="https?:|<text\b/);
   const png = await read('app/apple-touch-icon.png');
   assert.deepEqual(png.subarray(0, 8), pngSignature);
@@ -29,6 +32,18 @@ test('CampusBite icons have valid scalable and raster formats', async () => {
   assert.deepEqual(ico.subarray(22, 30), pngSignature);
   assert.equal(ico.readUInt32BE(38), 32);
   assert.equal(ico.readUInt32BE(42), 32);
+});
+
+test('Shared website and recovery email branding use the chef artwork instead of a text badge', async () => {
+  const brand=(await read('app/components/brand-mark.php')).toString();
+  assert.match(brand, /<img[^>]*class="cb-brand-badge cb-brand-icon"[^>]*src="assets\/campusbite-logo\.svg/);
+  assert.match(brand, /alt="" width="64" height="64"/);
+  const email=(await read('app/config/recovery-email.php')).toString();
+  assert.match(email, /src="cid:campusbite-logo"/);
+  assert.doesNotMatch(email, />CB<\/td>/);
+  const png=await read('app/assets/campusbite-email.png');
+  assert.deepEqual(png.subarray(0,8),pngSignature);
+  assert.equal(png.readUInt32BE(16),128);
 });
 
 test('Every HTML page head uses the shared favicon links', async () => {

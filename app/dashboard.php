@@ -965,7 +965,7 @@ function getStatusClass($status)
             </a>
         <?php endforeach; ?>
         <?php if (!$heroFoods): ?>
-            <div class="cb-hero-no-photo"><span class="cb-hero-stamp" aria-hidden="true">CB</span><span>MADE ON CAMPUS</span><strong>Good food.<br>Close to class.</strong><p>Explore your campus kitchens for today's menu.</p></div>
+            <div class="cb-hero-no-photo"><img class="cb-hero-stamp" src="assets/campusbite-logo.svg?v=<?= (int) filemtime(__DIR__ . '/assets/campusbite-logo.svg') ?>" alt="" width="54" height="54"><span>MADE ON CAMPUS</span><strong>Good food.<br>Close to class.</strong><p>Explore your campus kitchens for today's menu.</p></div>
         <?php endif; ?>
         </div>
     </section>

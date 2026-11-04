@@ -19,9 +19,8 @@ $mail->SMTPSecure='';
 $mail->SMTPAutoTLS=false;
 $mail->addAddress('recipient@example.invalid');
 $mail->Subject='Fixture recovery email';
-$mail->isHTML(true);
-$mail->Body=cbRecoveryEmailHtml('https://example.invalid/reset_password.php?token=fixture');
-$mail->AltBody='Fixture message only. No real user or reset token.';
+cbSetRecoveryMailBody($mail, 'Fixture message only. No real user or reset token.',
+    cbRecoveryEmailHtml('https://example.invalid/reset_password.php?token=fixture'));
 $accepted=false;
 $status=0;
 try { $accepted=$mail->send(); }

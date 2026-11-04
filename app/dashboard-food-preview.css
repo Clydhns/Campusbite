@@ -44,7 +44,7 @@ body[data-dashboard-user] .cb-food-hero p { margin:22px 0 0; font-size:16px; lin
 .cb-hero-no-photo { grid-column:1 / -1; padding:30px; border:1px solid #f1d5bf; border-radius:28px; background:linear-gradient(135deg,#fff,#ffe8d4); position:relative; }
 .cb-hero-no-photo > span:not(.cb-hero-stamp) { display:block; font-size:10px; font-weight:900; color:#8b4e20; letter-spacing:2px; margin-top:18px; }
 .cb-hero-no-photo strong { display:block; font-size:38px; line-height:1.15; letter-spacing:-1.5px; margin-top:12px; }
-.cb-hero-stamp { display:grid; place-items:center; width:54px; height:54px; border:1px solid #f1d5bf; border-radius:50%; background:#fff8f0; color:#e63946; font-weight:900; }
+.cb-hero-stamp { display:block; width:54px; height:54px; object-fit:contain; }
 body[data-dashboard-user] .cb-hero-no-photo p { font-size:13px; margin-top:14px; }
 .cb-sync-panel { margin:0 0 24px; color:#684632; font-size:12px; }
 .cb-sync-panel summary { display:flex; align-items:center; gap:8px; width:fit-content; cursor:pointer; padding:8px 12px; border:1px solid #f1d5bf; border-radius:999px; background:#fffcf9; list-style:none; font-weight:800; }

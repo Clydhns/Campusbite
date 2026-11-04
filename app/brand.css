@@ -36,8 +36,8 @@ a.cb-brand-logo.cb-site-brand,a.cb-brand-logo {
     letter-spacing:-.8px;
     color:#E63946;
 }
-/* The logo carries its own colours, so drop the text badge's tile styling. A CSS background keeps it decorative. */
-.cb-brand-logo .cb-brand-badge.cb-brand-icon { border:0; border-radius:0; background:url('assets/campusbite-logo.svg') center / contain no-repeat; }
+/* The shared artwork owns its colours; never redraw it as a text badge. */
+.cb-brand-logo .cb-brand-badge.cb-brand-icon { display:block; border:0; border-radius:0; background:transparent; object-fit:contain; }
 /* The steam fills the top of the logo, so the CB letters sit about 18% below its centre. Line the name up with the letters. */
 .cb-brand-logo .cb-brand-icon + .cb-brand-name { transform:translateY(11px); }
 .cb-brand-logo:focus-visible { outline:3px solid #a61f2e; outline-offset:5px; border-radius:17px; }

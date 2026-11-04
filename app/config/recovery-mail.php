@@ -38,9 +38,7 @@ function cbRecoveryMail(string $recipient, string $subject, #[SensitiveParameter
     try {
         $mail->addAddress($recipient);
         $mail->Subject=$subject;
-        $mail->isHTML($html!==null);
-        $mail->Body=$html ?? $text;
-        if ($html!==null) $mail->AltBody=$text;
+        cbSetRecoveryMailBody($mail, $text, $html);
         $mail->send();
         error_log('CampusBite recovery: smtp_accepted');
     } catch (Throwable $error) {

@@ -41,3 +41,14 @@ function cbCreateRecoveryMailer(string $sender, #[SensitiveParameter] string $pa
     $mail->setFrom($sender,'CampusBite');
     return $mail;
 }
+
+function cbSetRecoveryMailBody(\PHPMailer\PHPMailer\PHPMailer $mail, string $text, ?string $html): void {
+    $mail->isHTML($html !== null);
+    $mail->Body = $html ?? $text;
+    if ($html !== null) {
+        $mail->AltBody = $text;
+        if (str_contains($html, 'cid:campusbite-logo')) {
+            $mail->addEmbeddedImage(__DIR__ . '/../assets/campusbite-email.png', 'campusbite-logo', 'campusbite.png', 'base64', 'image/png');
+        }
+    }
+}

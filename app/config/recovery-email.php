@@ -17,7 +17,7 @@ function cbRecoveryEmailHtml(#[SensitiveParameter] string $url, bool $changed=fa
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #f1d5bf;border-radius:20px;">
 <tr><td style="padding:30px 28px 24px;border-bottom:1px solid #f1d5bf;">
 <table role="presentation" cellspacing="0" cellpadding="0"><tr>
-<td style="width:44px;height:44px;text-align:center;vertical-align:middle;background:#ffead6;border:1px solid #f1d5bf;border-radius:12px;color:#bd2433;font-size:15px;font-weight:bold;">CB</td>
+<td style="width:64px;height:64px;text-align:center;vertical-align:middle;"><img src="cid:campusbite-logo" width="64" height="64" alt="CampusBite logo" style="display:block;border:0;width:64px;height:64px;"></td>
 <td style="padding-left:12px;font-size:26px;font-weight:bold;letter-spacing:-1px;color:#e63946;">CampusBite</td>
 </tr></table></td></tr>
 <tr><td style="padding:28px;">

@@ -53,6 +53,9 @@ for(const mode of ['accept','reject','timeout']) {
       assert.match(delivered,/Content-Type: multipart\/alternative/);
       assert.match(delivered,/Content-Type: text\/plain/);
       assert.match(delivered,/Content-Type: text\/html/);
+      assert.match(delivered,/Content-Type: image\/png/);
+      assert.match(delivered,/Content-ID: <campusbite-logo>/);
+      assert.match(delivered,/Content-Disposition: inline/);
       const bodies=[...delivered.matchAll(/Content-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+?)(?=\r\n--)/g)]
         .map(match=>Buffer.from(match[1].replace(/\s/g,''),'base64').toString());
       assert.ok(bodies.some(body=>body.includes('Fixture message only.')));
