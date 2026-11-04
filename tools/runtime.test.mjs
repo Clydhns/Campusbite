@@ -1150,6 +1150,10 @@ try {
   check(!storeSettings.html.includes('value="change_password"') && !storeSettings.html.includes('cb-store-password-form'),
     'Store Profile contains store settings only, without a password form');
   const securityPage=await staff('staff_profile.php');
+  check(securityPage.html.includes('aria-describedby="profile-email-help"')
+    && securityPage.html.includes('Use a verified email account that you own and can access.')
+    && securityPage.html.includes('Password reset links will be sent to this address'),
+    'Store account email field explains accessible verified-email guidance for password recovery');
   const passwordForm=securityPage.html.match(/<form\b[^>]*class="cb-store-password-form"[\s\S]*?<\/form>/)?.[0] || '';
   check(passwordForm.includes('value="change_password"') && passwordForm.includes('name="current_password"')
     && passwordForm.includes('name="new_password"') && passwordForm.includes('name="confirm_password"'),
