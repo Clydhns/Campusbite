@@ -5,6 +5,15 @@
     font-size: 14px;
 }
 .cb-admin-store-status[data-state="error"] { color: #a61f2e; }
+#admin-kitchens { scroll-margin-top: 24px; }
+.cb-admin-kitchen-card { min-width: 0; }
+.cb-admin-kitchen-card > .cb-store-tile { display: block; }
+.cb-admin-kitchen-actions { padding: 18px 22px; border: 1px solid #f1d5bf; border-radius: 16px; background: #fff; margin-top: 10px; }
+.cb-admin-kitchen-actions p { font-size: 13px; color: #684632; line-height: 1.6; margin: 0 0 14px; }
+.cb-admin-kitchen-actions .btn { min-height: 44px; }
+.cb-admin-kitchen-actions details { margin-top: 14px; }
+.cb-admin-kitchen-actions summary { color: #a61f2e; cursor: pointer; font-weight: 800; padding: 10px 0; }
+.cb-admin-kitchen-actions summary:focus-visible { outline: 2px solid #a61f2e; outline-offset: 4px; }
 [data-admin-store][aria-current="true"] {
     border-color: #e63946;
     background: #fff0ef;

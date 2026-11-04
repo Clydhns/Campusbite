@@ -46,7 +46,7 @@ try {
   // Seed the same Philippine calendar day used by the application connections.
   await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql','20261104194555_archive_accounts.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql','20261104194555_archive_accounts.sql','20261104200817_archive_stores.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
@@ -1087,8 +1087,42 @@ try {
     check(!(await admin('admin_dashboard.php')).html.includes('other@example.invalid')
       && (await admin('admin_dashboard.php?orders=all')).html.includes('<h2 tabindex="-1">All Orders</h2>'),
       'Archived accounts disappear from Recent Users while admin order history still renders');
+    const storeDirectory=await admin('admin_stores.php');
+    const storeCsrf=token(storeDirectory.html);
+    const removedOwnerStoreId=Number((await db.query('SELECT store_id FROM stores WHERE staff_user_id=3')).rows[0].store_id);
+    const liveOwnerStoreId=Number((await db.query('SELECT store_id FROM stores WHERE staff_user_id=2')).rows[0].store_id);
+    const storeAction=(action,storeId,csrf=storeCsrf,request=admin)=>request('admin_stores.php',
+      {action,store_id:String(storeId),csrf_token:csrf});
+    check(storeDirectory.html.includes('Account deleted') && storeDirectory.html.includes('value="keep_store"')
+      && storeDirectory.html.includes('value="remove_store"') && storeDirectory.html.includes('Confirm removal'),
+      'Stores with deleted accounts offer Keep Store and a two-step Remove Store confirmation');
+    const invalidStoreAction=await storeAction('remove_store',removedOwnerStoreId,'invalid');
+    const liveStoreAction=await storeAction('remove_store',liveOwnerStoreId);
+    const invalidKeep=await storeAction('keep_store',liveOwnerStoreId);
+    check(invalidStoreAction.html.includes('Invalid request.') && liveStoreAction.html.includes('Only stores whose accounts were deleted')
+      && invalidKeep.html.includes('Only stores whose accounts were deleted')
+      && (await storeAction('remove_store',removedOwnerStoreId,storeCsrf,staff)).status===302,
+      'Store decisions require administrator access, valid CSRF and a deleted owner account');
+    const kept=await storeAction('keep_store',removedOwnerStoreId);
+    const keptRow=(await db.query('SELECT is_open,archived_at,retained_at FROM stores WHERE store_id=$1',[removedOwnerStoreId])).rows[0];
+    check(kept.status===303 && keptRow.is_open===0 && keptRow.archived_at===null && keptRow.retained_at
+      && (await admin('admin_stores.php')).html.includes('Kept for records.') && await historyCounts()===beforeCounts,
+      'Keep Store persists the admin choice without reopening the kitchen or changing its history');
+    const removedStore=await storeAction('remove_store',removedOwnerStoreId);
+    const removedRow=(await db.query('SELECT is_open,archived_at,retained_at FROM stores WHERE store_id=$1',[removedOwnerStoreId])).rows[0];
+    check(removedStore.status===303 && removedRow.is_open===0 && removedRow.archived_at && removedRow.retained_at===null
+      && !(await admin('admin_stores.php')).html.includes(`data-admin-store="${removedOwnerStoreId}"`)
+      && await historyCounts()===beforeCounts,
+      'Remove Store hides its card and selector while preserving the physical store, menus, orders, items and payments');
+    const historicalNumbers=(await db.query('SELECT order_number FROM orders WHERE store_id=$1 ORDER BY order_datetime DESC LIMIT 5',[removedOwnerStoreId])).rows;
+    const allHistory=await admin('admin_dashboard.php?orders=all');
+    check(historicalNumbers.length>0 && historicalNumbers.every(row=>allHistory.html.includes(row.order_number))
+      && (await storeAction('keep_store',removedOwnerStoreId)).html.includes('Only stores whose accounts were deleted'),
+      'Removed stores retain their admin order history and stale Keep requests cannot restore them');
+    await assert.rejects(db.query('UPDATE stores SET is_open=1 WHERE store_id=$1',[removedOwnerStoreId]));
+    check(true,'The database prevents a removed store from reopening');
     // Restore only disposable fixture accounts for the unrelated tests that follow.
-    await db.exec('UPDATE users SET archived_at=NULL,is_active=1 WHERE user_id IN (3,4); UPDATE stores SET is_open=1 WHERE staff_user_id=3');
+    await db.exec('UPDATE users SET archived_at=NULL,is_active=1 WHERE user_id IN (3,4); UPDATE stores SET archived_at=NULL,retained_at=NULL,is_open=1 WHERE staff_user_id=3');
     await signin(student,'student@example.invalid');
     await signin(other,'other@example.invalid');
   }

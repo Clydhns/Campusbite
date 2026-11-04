@@ -19,6 +19,12 @@ email addresses and account IDs stay reserved; this is not permanent data erasur
 Administrator accounts cannot be removed through this action. Existing RLS and
 server-only database privileges remain unchanged.
 
+Apply `supabase/migrations/20261104200817_archive_stores.sql` before deploying
+store retention controls. After its owner account is removed, an administrator
+can Keep Store (closed, visible for records) or Remove Store (hidden from Stores).
+Neither action deletes orders, payments, menus, or the underlying store record.
+Removed-store orders remain accessible through the admin All Orders history.
+
 ## Chosen platform
 
 - GitHub for source control.
