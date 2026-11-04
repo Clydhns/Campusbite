@@ -1510,7 +1510,7 @@ function paymentClass($status)
                         </div>
 
                         <a
-                            href="admin_users.php"
+                            href="admin_users.php#registered-accounts"
                             class="panel-link"
                         >
                             View All

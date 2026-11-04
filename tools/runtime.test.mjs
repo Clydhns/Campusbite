@@ -616,6 +616,11 @@ try {
     const page=await admin(route); assert.equal(page.status,200); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Admin dashboard, account management, stores and profile render');
+  const registeredUsersPage=await admin('admin_users.php');
+  check((await admin('admin_dashboard.php')).html.includes('href="admin_users.php#registered-accounts"')
+    && registeredUsersPage.status===200 && registeredUsersPage.html.includes('id="registered-accounts"')
+    && registeredUsersPage.html.includes('id="registered-users-title">Registered Users'),
+    'Recent Users View All links directly to the registered-users list instead of the account creation forms');
   const adminDashboardHtml=(await admin('admin_dashboard.php')).html;
   const adminProfilePosition=adminDashboardHtml.indexOf('class="admin-profile"');
   check(adminProfilePosition>0 && adminProfilePosition<adminDashboardHtml.indexOf('class="cb-hero"')
