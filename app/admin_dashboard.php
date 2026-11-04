@@ -16,6 +16,12 @@ if (
 }
 
 $adminName = ($_SESSION["first_name"] ?? "Admin") . " " . ($_SESSION["last_name"] ?? "");
+$showAllOrders = ($_GET['orders'] ?? '') === 'all';
+$orderPage = max(1, (int) (filter_input(INPUT_GET, 'order_page', FILTER_VALIDATE_INT) ?: 1));
+$orderPageCount = 1;
+$orderTotal = 0;
+$orderLimit = $showAllOrders ? 25 : 8;
+$orderOffset = 0;
 
 // --------------------------------------------------
 // DASHBOARD STATISTICS
@@ -48,6 +54,12 @@ try {
 // --------------------------------------------------
 
 try {
+    if ($showAllOrders) {
+        $orderTotal = (int) $pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn();
+        $orderPageCount = max(1, (int) ceil($orderTotal / $orderLimit));
+        $orderPage = min($orderPage, $orderPageCount);
+        $orderOffset = ($orderPage - 1) * $orderLimit;
+    }
     $stmt = $pdo->query("
         SELECT
             o.order_id,
@@ -84,8 +96,8 @@ try {
             ON o.student_id = u.user_id
         INNER JOIN order_statuses os
             ON o.status_id = os.status_id
-        ORDER BY o.order_datetime DESC
-        LIMIT 8
+        ORDER BY o.order_datetime DESC, o.order_id DESC
+        LIMIT $orderLimit OFFSET $orderOffset
     ");
 
     $recentOrders = $stmt->fetchAll();
@@ -1005,7 +1017,7 @@ function paymentClass($status)
 
         <?php
         require_once __DIR__ . "/components/order-tracking.php";
-        campusBiteTracking($pdo, $recentOrders);
+        if (!$showAllOrders) campusBiteTracking($pdo, $recentOrders);
         ?>
 
         <!-- CONTENT -->
@@ -1264,7 +1276,7 @@ function paymentClass($status)
                         </p>
 
                         <a
-                            href="staff_dashboard.php"
+                            href="admin_dashboard.php?orders=all#admin-orders"
                             class="action-button"
                         >
                             Open Orders
@@ -1310,19 +1322,19 @@ function paymentClass($status)
 
                 <!-- RECENT ORDERS -->
 
-                <div class="panel">
+                <div class="panel" id="admin-orders">
 
                     <div class="panel-header">
 
                         <div>
-                            <h2>Recent Orders</h2>
+                            <h2><?= $showAllOrders ? 'All Orders' : 'Recent Orders' ?></h2>
                         </div>
 
                         <a
-                            href="staff_dashboard.php"
+                            href="<?= $showAllOrders ? 'admin_dashboard.php#admin-orders' : 'admin_dashboard.php?orders=all#admin-orders' ?>"
                             class="panel-link"
                         >
-                            View All
+                            <?= $showAllOrders ? 'Show Recent' : 'View All' ?>
                         </a>
 
                     </div>
@@ -1470,8 +1482,20 @@ function paymentClass($status)
 
                     <?php endif; ?>
 
+                <?php if ($showAllOrders && $orderTotal > 0): ?>
+                <nav class="admin-order-pagination" aria-label="Order history pages">
+                    <span><?= number_format($orderTotal) ?> orders &middot; Page <?= $orderPage ?> of <?= $orderPageCount ?></span>
+                    <div>
+                        <?php if ($orderPage > 1): ?>
+                        <a href="admin_dashboard.php?orders=all&amp;order_page=<?= $orderPage - 1 ?>#admin-orders" class="panel-link">Previous</a>
+                        <?php endif; ?>
+                        <?php if ($orderPage < $orderPageCount): ?>
+                        <a href="admin_dashboard.php?orders=all&amp;order_page=<?= $orderPage + 1 ?>#admin-orders" class="panel-link">Next</a>
+                        <?php endif; ?>
+                    </div>
+                </nav>
+                <?php endif; ?>
                 </div>
-
 
                 <!-- RECENT USERS -->
 

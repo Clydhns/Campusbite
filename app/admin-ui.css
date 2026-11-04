@@ -129,6 +129,30 @@
 .cb-admin-dashboard .profile-avatar { flex-shrink: 0; }
 .cb-admin-dashboard .profile-text { display: block; min-width: 0; }
 .cb-admin-dashboard .profile-text strong { overflow-wrap: anywhere; }
+#admin-orders { scroll-margin-top: 24px; }
+.cb-admin-dashboard .admin-order-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 18px 24px;
+    border-top: 1px solid #f1d5bf;
+    color: #684632;
+}
+.cb-admin-dashboard .admin-order-pagination > div { display: flex; gap: 16px; }
+.cb-admin-dashboard .admin-order-pagination a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid #f1d5bf;
+    border-radius: 10px;
+}
+.cb-admin-dashboard .admin-order-pagination a:focus-visible {
+    outline: 2px solid #e63946;
+    outline-offset: 3px;
+}
 .cb-admin-dashboard .admin-profile:focus-visible {
     outline: 2px solid var(--cb-primary, #e63946);
     outline-offset: 6px;

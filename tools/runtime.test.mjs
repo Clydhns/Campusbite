@@ -621,6 +621,18 @@ try {
   check(adminProfilePosition>0 && adminProfilePosition<adminDashboardHtml.indexOf('class="cb-hero"')
     && (adminDashboardHtml.match(/class="admin-profile"/g) || []).length===1,
     'Admin identity appears once at the top, before the hero and order-tracking content');
+  const allAdminOrders=await admin('admin_dashboard.php?orders=all');
+  const adminOrderCount=Number((await db.query('SELECT COUNT(*) AS count FROM orders')).rows[0].count);
+  const orderHistoryTable=allAdminOrders.html.split('id="admin-orders"')[1].split('</table>')[0];
+  check(allAdminOrders.status===200 && allAdminOrders.html.includes('<h2>All Orders</h2>')
+    && (orderHistoryTable.match(/class="order-number"/g) || []).length===Math.min(25,adminOrderCount)
+    && adminDashboardHtml.includes('href="admin_dashboard.php?orders=all#admin-orders"')
+    && !adminDashboardHtml.includes('href="staff_dashboard.php"'),
+    'View All opens the admin order history at its anchor instead of redirecting through the staff dashboard');
+  const lastAdminOrders=await admin('admin_dashboard.php?orders=all&order_page=999999');
+  check(lastAdminOrders.status===200 && lastAdminOrders.html.includes('Page '+Math.max(1,Math.ceil(adminOrderCount/25))+' of ')
+    && (await student('admin_dashboard.php?orders=all')).status===302,
+    'Order history clamps out-of-range pages and remains restricted to administrators');
   check((await admin('admin_stores.php?store=1')).html.includes('Cup of Juice</h3><p>Beverages &middot; Unavailable'),
     'Admin food labels use the same daily expiry for drinks as staff and students');
   const defaultCategories=await readFile(path.join(root,'supabase/migrations/20261102090000_default_categories.sql'),'utf8');
