@@ -936,7 +936,7 @@ tr.account-removing {
                     <div class="form-group">
                         <label for="new-staff-id">Store ID</label>
                         <input id="new-staff-id" name="id_number"
-                               placeholder="STF-0003"
+                               placeholder="STR-0003"
                                value="<?= e($staffForm["id_number"] ?? "") ?>"
                                required>
                     </div>
