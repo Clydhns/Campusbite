@@ -616,6 +616,11 @@ try {
     const page=await admin(route); assert.equal(page.status,200); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Admin dashboard, account management, stores and profile render');
+  const adminDashboardHtml=(await admin('admin_dashboard.php')).html;
+  const adminProfilePosition=adminDashboardHtml.indexOf('class="admin-profile"');
+  check(adminProfilePosition>0 && adminProfilePosition<adminDashboardHtml.indexOf('class="cb-hero"')
+    && (adminDashboardHtml.match(/class="admin-profile"/g) || []).length===1,
+    'Admin identity appears once at the top, before the hero and order-tracking content');
   check((await admin('admin_stores.php?store=1')).html.includes('Cup of Juice</h3><p>Beverages &middot; Unavailable'),
     'Admin food labels use the same daily expiry for drinks as staff and students');
   const defaultCategories=await readFile(path.join(root,'supabase/migrations/20261102090000_default_categories.sql'),'utf8');

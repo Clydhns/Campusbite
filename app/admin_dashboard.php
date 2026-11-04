@@ -957,18 +957,7 @@ function paymentClass($status)
          MAIN AREA
     =========================================== -->
 
-    <main class="main">
-
-    <section class="cb-hero" aria-labelledby="cb-hero-title">
-        <span class="cb-hero-kicker">CAMPUSBITE MANAGEMENT</span>
-        <h1 id="cb-hero-title"><span>Everything you manage,</span>in one simple view.</h1>
-        <p>Keep an eye on your campus kitchen, from orders and sales to the people behind them.</p>
-    </section>
-
-<?php
-require_once __DIR__ . "/components/order-tracking.php";
-campusBiteTracking($pdo, $recentOrders);
-?>
+    <main class="main cb-admin-dashboard">
 
         <!-- TOP BAR -->
 
@@ -1007,6 +996,17 @@ campusBiteTracking($pdo, $recentOrders);
             </a>
 
         </header>
+
+        <section class="cb-hero" aria-labelledby="cb-hero-title">
+            <span class="cb-hero-kicker">CAMPUSBITE MANAGEMENT</span>
+            <h1 id="cb-hero-title"><span>Everything you manage,</span>in one simple view.</h1>
+            <p>Keep an eye on your campus kitchen, from orders and sales to the people behind them.</p>
+        </section>
+
+        <?php
+        require_once __DIR__ . "/components/order-tracking.php";
+        campusBiteTracking($pdo, $recentOrders);
+        ?>
 
         <!-- CONTENT -->
 

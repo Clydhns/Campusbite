@@ -120,6 +120,19 @@
     line-height: 1.5;
 }
 .cb-admin-users .action-btn:disabled { opacity: .65; cursor: wait; }
+.cb-admin-dashboard .admin-profile {
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 12px;
+    text-decoration: none;
+}
+.cb-admin-dashboard .profile-avatar { flex-shrink: 0; }
+.cb-admin-dashboard .profile-text { display: block; min-width: 0; }
+.cb-admin-dashboard .profile-text strong { overflow-wrap: anywhere; }
+.cb-admin-dashboard .admin-profile:focus-visible {
+    outline: 2px solid var(--cb-primary, #e63946);
+    outline-offset: 6px;
+}
 @media (max-width: 750px) {
     .cb-admin-users .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
