@@ -21,7 +21,8 @@ server-only database privileges remain unchanged.
 
 Apply `supabase/migrations/20261104200817_archive_stores.sql` before deploying
 store retention controls. After its owner account is removed, an administrator
-can Keep Store (closed, visible for records) or Remove Store (hidden from Stores).
+can leave the store listed (closed, kept for records) or use its three-dot menu
+to Remove Store (hidden from Stores). The menu is hidden for non-deleted owners.
 Neither action deletes orders, payments, menus, or the underlying store record.
 Removed-store orders remain accessible through the admin All Orders history.
 

@@ -1093,9 +1093,14 @@ try {
     const liveOwnerStoreId=Number((await db.query('SELECT store_id FROM stores WHERE staff_user_id=2')).rows[0].store_id);
     const storeAction=(action,storeId,csrf=storeCsrf,request=admin)=>request('admin_stores.php',
       {action,store_id:String(storeId),csrf_token:csrf});
-    check(storeDirectory.html.includes('Account deleted') && storeDirectory.html.includes('value="keep_store"')
+    const liveStoreCard=storeDirectory.html.split(`data-admin-store="${liveOwnerStoreId}"`)[1].split('</article>')[0];
+    const deletedStoreCard=storeDirectory.html.split(`data-admin-store="${removedOwnerStoreId}"`)[1].split('</article>')[0];
+    check(storeDirectory.html.includes('Account deleted') && !storeDirectory.html.includes('value="keep_store"')
       && storeDirectory.html.includes('value="remove_store"') && storeDirectory.html.includes('Confirm removal'),
-      'Stores with deleted accounts offer Keep Store and a two-step Remove Store confirmation');
+      'Deleted-account stores have a compact removal option with confirmation and no expanded Keep controls');
+    check(deletedStoreCard.includes('class="cb-admin-kitchen-menu"') && deletedStoreCard.includes('&#8942;')
+      && !liveStoreCard.includes('class="cb-admin-kitchen-menu"'),
+      'The three-dot Store options menu appears only on stores whose owner account was deleted');
     const invalidStoreAction=await storeAction('remove_store',removedOwnerStoreId,'invalid');
     const liveStoreAction=await storeAction('remove_store',liveOwnerStoreId);
     const invalidKeep=await storeAction('keep_store',liveOwnerStoreId);
@@ -1106,7 +1111,7 @@ try {
     const kept=await storeAction('keep_store',removedOwnerStoreId);
     const keptRow=(await db.query('SELECT is_open,archived_at,retained_at FROM stores WHERE store_id=$1',[removedOwnerStoreId])).rows[0];
     check(kept.status===303 && keptRow.is_open===0 && keptRow.archived_at===null && keptRow.retained_at
-      && (await admin('admin_stores.php')).html.includes('Kept for records.') && await historyCounts()===beforeCounts,
+      && (await admin('admin_stores.php')).html.includes(`data-admin-store="${removedOwnerStoreId}"`) && await historyCounts()===beforeCounts,
       'Keep Store persists the admin choice without reopening the kitchen or changing its history');
     const removedStore=await storeAction('remove_store',removedOwnerStoreId);
     const removedRow=(await db.query('SELECT is_open,archived_at,retained_at FROM stores WHERE store_id=$1',[removedOwnerStoreId])).rows[0];

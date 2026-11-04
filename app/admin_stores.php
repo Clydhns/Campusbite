@@ -67,15 +67,9 @@ $orders = $stmt->fetchAll();
 <?php foreach ($stores as $store): ?><article class="cb-admin-kitchen-card">
 <a class="cb-store-tile" data-admin-store="<?= (int) $store['store_id'] ?>" href="admin_stores.php?store=<?= (int) $store['store_id'] ?>"><h3><?= cbEscape($store['store_name']) ?></h3><p><?= cbEscape($store['first_name'] . ' ' . $store['last_name']) ?></p><span><?= $store['owner_archived'] ? 'Account deleted' : ($store['staff_active'] && cbStoreAcceptingOrders($store) ? 'Open now' : 'Closed / inactive') ?> &middot; <?= (int) $store['food_count'] ?> foods</span><p class="cb-store-hours"><?= cbEscape(cbStoreHoursLabel($store)) ?></p></a>
 <?php if ($store['owner_archived']): ?>
+<details class="cb-admin-kitchen-menu" name="store-options">
+<summary aria-label="Store options for <?= cbEscape($store['store_name']) ?>"><span aria-hidden="true">&#8942;</span></summary>
 <div class="cb-admin-kitchen-actions">
-<p><?= $store['retained_at'] ? 'Kept for records. The store remains closed.' : 'This account was deleted. Keep this store for records or remove it from this list.' ?></p>
-<?php if (!$store['retained_at']): ?>
-<form method="POST" action="admin_stores.php">
-<input type="hidden" name="csrf_token" value="<?= cbEscape($csrf) ?>">
-<input type="hidden" name="store_id" value="<?= (int) $store['store_id'] ?>">
-<button class="btn" name="action" value="keep_store">Keep Store</button>
-</form>
-<?php endif; ?>
 <details><summary>Remove Store</summary>
 <p>Remove this store from the list? Its menus, orders, and payments will remain in history.</p>
 <form method="POST" action="admin_stores.php">
@@ -84,6 +78,7 @@ $orders = $stmt->fetchAll();
 <button class="btn" name="action" value="remove_store">Confirm removal</button>
 </form></details>
 </div>
+</details>
 <?php endif; ?></article><?php endforeach; ?>
 <?php if (!$stores): ?><p>No stores to display.</p><?php endif; ?>
 </div></section>
