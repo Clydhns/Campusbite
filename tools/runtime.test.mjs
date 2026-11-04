@@ -629,7 +629,7 @@ try {
     'Admin Quick Actions has a labelled padded section and three text-only action cards');
   check(quickActionsHtml.includes('Manage Stores') && quickActionsHtml.includes('Open Stores')
     && quickActionsHtml.includes('href="admin_stores.php"') && !quickActionsHtml.includes('staff_menu.php')
-    && quickActionsHtml.includes('href="admin_users.php"')
+    && quickActionsHtml.includes('href="admin_users.php#registered-accounts"')
     && quickActionsHtml.includes('href="admin_dashboard.php?orders=all#admin-orders"'),
     'Quick Actions opens the correct admin Users, Orders and Stores destinations without staff-only menu redirects');
   const adminProfilePosition=adminDashboardHtml.indexOf('class="admin-profile"');

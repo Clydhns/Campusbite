@@ -1246,7 +1246,7 @@ function paymentClass($status)
                         </p>
 
                         <a
-                            href="admin_users.php"
+                            href="admin_users.php#registered-accounts"
                             class="action-button"
                         >
                             Open Users
