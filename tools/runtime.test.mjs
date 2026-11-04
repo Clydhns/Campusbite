@@ -622,6 +622,11 @@ try {
     && registeredUsersPage.html.includes('id="registered-users-title">Registered Users'),
     'Recent Users View All links directly to the registered-users list instead of the account creation forms');
   const adminDashboardHtml=(await admin('admin_dashboard.php')).html;
+  const quickActionsHtml=adminDashboardHtml.split('class="section admin-quick-actions"')[1].split('</section>')[0];
+  check(quickActionsHtml.includes('id="admin-quick-actions-title">Quick Actions')
+    && !quickActionsHtml.includes('action-icon')
+    && (quickActionsHtml.match(/class="action-card"/g) || []).length===3,
+    'Admin Quick Actions has a labelled padded section and three text-only action cards');
   const adminProfilePosition=adminDashboardHtml.indexOf('class="admin-profile"');
   check(adminProfilePosition>0 && adminProfilePosition<adminDashboardHtml.indexOf('class="cb-hero"')
     && (adminDashboardHtml.match(/class="admin-profile"/g) || []).length===1,

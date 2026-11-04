@@ -1215,12 +1215,12 @@ function paymentClass($status)
 
             <!-- QUICK ACTIONS -->
 
-            <section class="section">
+            <section class="section admin-quick-actions" aria-labelledby="admin-quick-actions-title">
 
                 <div class="section-header">
 
                     <div>
-                        <h2>Quick Actions</h2>
+                        <h2 id="admin-quick-actions-title">Quick Actions</h2>
 
                         <p>
                             Manage important parts of the system.
@@ -1235,10 +1235,6 @@ function paymentClass($status)
                     <!-- USERS -->
 
                     <div class="action-card">
-
-                        <div class="action-icon">
-                            👥
-                        </div>
 
                         <h3>
                             Manage Users
@@ -1263,10 +1259,6 @@ function paymentClass($status)
 
                     <div class="action-card">
 
-                        <div class="action-icon">
-                            📦
-                        </div>
-
                         <h3>
                             Manage Orders
                         </h3>
@@ -1289,10 +1281,6 @@ function paymentClass($status)
                     <!-- MENU -->
 
                     <div class="action-card">
-
-                        <div class="action-icon">
-                            🍔
-                        </div>
 
                         <h3>
                             Manage Menu

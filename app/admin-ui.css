@@ -122,6 +122,19 @@
 }
 .cb-admin-users .action-btn:disabled { opacity: .65; cursor: wait; }
 .cb-admin-dashboard .topbar { justify-content: flex-start; }
+.cb-admin-dashboard .admin-quick-actions { padding: 28px; }
+.cb-admin-dashboard .admin-quick-actions .section-header { margin-bottom: 22px; }
+.cb-admin-dashboard .admin-quick-actions h2 { line-height: 1.35; margin-bottom: 6px; }
+.cb-admin-dashboard .admin-quick-actions .section-header p { line-height: 1.6; }
+.cb-admin-dashboard .admin-quick-actions .action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+.cb-admin-dashboard .admin-quick-actions .action-card h3 { line-height: 1.4; }
+.cb-admin-dashboard .admin-quick-actions .action-card p { margin-bottom: 20px; }
+.cb-admin-dashboard .admin-quick-actions .action-button { margin-top: auto; }
 .cb-admin-dashboard .admin-profile {
     min-width: 0;
     max-width: 100%;
@@ -169,6 +182,7 @@
     .cb-admin-users .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 540px) {
+    .cb-admin-dashboard .admin-quick-actions { padding: 20px 16px; }
     .cb-admin .card-header,
     .cb-admin .card-content { padding: 22px 18px; }
     .cb-admin .submit-area .btn { width: 100%; }
