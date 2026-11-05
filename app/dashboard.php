@@ -50,7 +50,9 @@ try {
 
 } catch (PDOException $e) {
 
-    die("Unable to load user information: " . $e->getMessage());
+    error_log('CampusBite dashboard identity lookup failed.');
+    http_response_code(503);
+    exit('CampusBite is temporarily unavailable. Please try again later.');
 }
 
 /*
@@ -1117,6 +1119,7 @@ function getStatusClass($status)
 
 
         </div>
+        <?php require __DIR__ . '/components/project-identity.php'; ?>
     </main>
         <!-- ========================================================
              CURRENT ORDER CARD (outside main: its entrance animation would anchor fixed elements to it)

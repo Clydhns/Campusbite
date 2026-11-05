@@ -11,7 +11,12 @@ $allowed=['index.php','login.php','register.php','logout.php','dashboard.php','m
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
-header("Content-Security-Policy: form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'");
+$contentPolicy = "form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
+// These pages use only local executable scripts and same-origin live requests.
+if (in_array($route, ['login.php', 'register.php', 'dashboard.php'], true)) {
+    $contentPolicy .= "; script-src 'self'; connect-src 'self'; frame-src 'none'";
+}
+header('Content-Security-Policy: ' . $contentPolicy);
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cache-Control: private, no-store');
 if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET',['GET','HEAD','POST'],true)) {

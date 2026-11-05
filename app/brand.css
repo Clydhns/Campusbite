@@ -42,6 +42,9 @@ a.cb-brand-logo.cb-site-brand,a.cb-brand-logo {
 .cb-brand-logo .cb-brand-icon + .cb-brand-name { transform:translateY(11px); }
 .cb-brand-logo:focus-visible { outline:3px solid #a61f2e; outline-offset:5px; border-radius:17px; }
 .cb-brand-tagline { display:block; margin:8px 0 0 76px; font-size:10px; font-weight:900; letter-spacing:2px; color:#684632; }
+.cb-project-identity { margin:16px 0 24px; color:#684632; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.cb-project-identity a { color:#a61f2e; text-decoration:underline; text-underline-offset:3px; }
+.cb-project-identity a:focus-visible { outline:2px solid #a61f2e; outline-offset:3px; }
 @media(max-width:640px) {
     .cb-brand-logo .cb-brand-badge { width:54px; height:54px; border-radius:14px; font-size:13px; }
     .cb-brand-logo .cb-brand-name { font-size:27px; }

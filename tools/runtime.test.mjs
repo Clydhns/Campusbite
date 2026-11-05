@@ -143,9 +143,15 @@ try {
   const loginView=publicLogin.html.match(/<section\b[^>]*id="login-view"[\s\S]*?<\/section>/)?.[0] || '';
   const registerView=publicLogin.html.match(/<section\b[^>]*id="register-view"[\s\S]*?<\/section>/)?.[0] || '';
   check(loginView.includes('action="login.php"') && loginView.includes('id="login-password-help"')
-    && !loginView.includes('auth-project-note')
+    && loginView.includes('class="cb-project-identity"') && loginView.includes('Not an official school portal.')
     && registerView.includes('auth-project-note') && registerView.includes('index.php#data-use'),
-    'Login omits the repeated project notice while preserving password guidance, the login form and registration disclosure');
+    'Direct login shows a compact project identity and data-use link while preserving password guidance and registration disclosure');
+  const lockedPolicy = page => ["script-src 'self'", "connect-src 'self'", "frame-src 'none'"]
+    .every(directive => page.csp?.includes(directive)) && !page.csp.includes("'unsafe-inline'") && !page.csp.includes("'unsafe-eval'");
+  check(lockedPolicy(publicLogin) && lockedPolicy(await anon('register.php')),
+    'Login and registration allow only same-origin scripts and connections, without inline execution, eval or embedded frames');
+  check((await anon('dashboard.php')).location==='login.php',
+    'Anonymous dashboard access redirects only to the local login page');
   check(publicLogin.csp?.includes("form-action 'self'") && publicLogin.csp?.includes("base-uri 'self'")
     && publicLogin.csp?.includes("frame-ancestors 'none'") && publicLogin.csp?.includes("object-src 'none'")
     && publicLogin.html.includes('index.php#data-use'),
@@ -160,6 +166,17 @@ try {
     const page=await student(route); assert.equal(page.status,200,route); assert.ok(!page.html.includes('temporarily unavailable'),route);
   }
   check(true,'Student dashboard, menu, empty cart, orders and profile render through PHP/PostgreSQL');
+  const reviewedDashboard=await student('dashboard.php');
+  check(lockedPolicy(reviewedDashboard) && reviewedDashboard.html.includes('class="cb-project-identity"')
+    && reviewedDashboard.html.includes('Not an official school portal.'),
+    'Dashboard has the same script/connection restrictions and a visible independent-project notice');
+  const originalStore=(await db.query('SELECT description FROM public.stores WHERE store_id=1')).rows[0];
+  const injection='<script src="https://example.invalid/injected.js"></script>';
+  await db.query('UPDATE public.stores SET description=$1 WHERE store_id=1',[injection]);
+  const escapedDashboard=await student('dashboard.php');
+  await db.query('UPDATE public.stores SET description=$1 WHERE store_id=1',[originalStore.description]);
+  check(!escapedDashboard.html.includes(injection) && escapedDashboard.html.includes('&lt;script src=&quot;https://example.invalid/injected.js&quot;&gt;&lt;/script&gt;'),
+    'Store descriptions render injected script markup as text, not executable dashboard content');
   check(!(await student('dashboard.php')).html.includes('src="assets/order-tracking/tracking.js'),
     'An empty dashboard skips the 255 KB order-tracking JavaScript bundle');
   const dashboardCard=(html,id)=>html.match(new RegExp(`<a\\b[^>]*data-food-id="${id}"[^>]*>[\\s\\S]*?<\\/a>`))?.[0] || '';

@@ -39,6 +39,7 @@ function authEscape($value): string {
             <span class="form-eyebrow">WELCOME BACK</span>
             <h1 id="login-title" tabindex="-1">Sign in to CampusBite</h1>
             <p class="description">Log in to your CampusBite account.</p>
+            <?php require __DIR__ . '/components/project-identity.php'; ?>
             <?php if (!$signup && $error !== ""): ?>
                 <div class="error" role="alert"><?= authEscape($error) ?></div>
             <?php endif; ?>
@@ -78,11 +79,11 @@ function authEscape($value): string {
                     <?php
                     $fields = [
                         ["id_number", "ID Number", "text", "Example: 2026-0105", true, "off"],
-                        ["email", "Email", "email", "example@school.edu.ph", true, "email"],
+                        ["email", "Email", "email", "Your own email address", true, "email"],
                         ["first_name", "First Name", "text", "First name", true, "given-name"],
                         ["last_name", "Last Name", "text", "Last name", true, "family-name"],
                         ["contact_number", "Contact Number", "text", "09XXXXXXXXX", false, "tel"],
-                        ["grade_section", "School / Course / Section", "text", "USPF / BSIT / 3A", false, "off"],
+                        ["grade_section", "School / Course / Section", "text", "Your school, course or section", false, "off"],
                         ["password", "Password", "password", "At least 8 characters", true, "new-password"],
                         ["confirm_password", "Confirm Password", "password", "Re-enter password", true, "new-password"]
                     ];
