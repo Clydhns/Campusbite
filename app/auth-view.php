@@ -65,13 +65,13 @@ function authEscape($value): string {
         <section class="auth-form-view" id="register-view" <?= !$signup ? "hidden" : "" ?> aria-labelledby="register-title">
             <span class="form-eyebrow">JOIN THE TABLE</span>
             <h1 id="register-title" tabindex="-1">Create your account</h1>
-            <p class="description">Create your account and go straight to your student dashboard.</p>
+            <p class="description">Verify your email first, then finish creating your CampusBite account.</p>
             <p class="auth-project-note"><strong>Independent student project.</strong> CampusBite is a campus food-ordering project, not an official school portal. <a href="index.php#data-use">About the project and data use</a>.</p>
             <?php if ($signup && $error !== ""): ?>
                 <div class="error" role="alert"><?= authEscape($error) ?></div>
             <?php endif; ?>
             <?php if ($signup && !empty($message)): ?>
-                <div class="success" role="status"><?= authEscape($message) ?> <a href="login.php" data-switch="login">Login now</a></div>
+                <div class="success" role="status"><?= authEscape($message) ?></div>
             <?php endif; ?>
             <form method="POST" action="register.php">
                 <input type="hidden" name="csrf_token" value="<?= authEscape(cbAuthToken()) ?>">
@@ -96,7 +96,8 @@ function authEscape($value): string {
                     <?php endforeach; ?>
                 </div>
                 <p class="auth-password-help" id="register-password-help">Create a unique password for CampusBite. Do not reuse your school, email, or GCash password.</p>
-                <button type="submit" class="login-button">Create Account</button>
+                <p class="auth-password-help">Use an email inbox you own and can access. No account is created until you open the verification link and confirm your CampusBite password.</p>
+                <button type="submit" class="login-button">Send verification email</button>
             </form>
             <p class="register">Already have an account? <a href="login.php" data-switch="login">Login</a></p>
         </section>

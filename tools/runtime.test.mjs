@@ -46,17 +46,18 @@ try {
   // Seed the same Philippine calendar day used by the application connections.
   await db.exec("SET TIME ZONE 'Asia/Manila'");
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
-  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql','20261104194555_archive_accounts.sql','20261104200817_archive_stores.sql']) {
+  for(const name of ['202610290001_initial_schema.sql','202610290002_runtime.sql','20261031135602_cash_pay_at_pickup.sql','20261031173553_store_hours.sql','20261102120000_favorite_stores.sql','20261102150000_profile_photos.sql','20261103170751_password_recovery.sql','20261104194555_archive_accounts.sql','20261104200817_archive_stores.sql','20261105153855_registration_email_verification.sql']) {
     await db.exec(await readFile(path.join(root,'supabase/migrations',name),'utf8'));
   }
   check(true,'Schema and runtime migrations execute in PostgreSQL');
   const privateTables=(await db.query("SELECT relrowsecurity FROM pg_class JOIN pg_namespace n ON n.oid=relnamespace WHERE n.nspname='campusbite_private' AND relkind='r'")).rows;
-  check(privateTables.length===4 && privateTables.every(table=>table.relrowsecurity),'All four private runtime and recovery tables have RLS enabled');
+  check(privateTables.length===5 && privateTables.every(table=>table.relrowsecurity),'All five private runtime, recovery and verification tables have RLS enabled');
   const recoveryGrants=await db.query("SELECT grantee FROM information_schema.table_privileges WHERE table_schema='campusbite_private' AND table_name IN ('password_resets','recovery_limits') AND grantee IN ('PUBLIC','anon','authenticated')");
   check(recoveryGrants.rows.length===0,'Recovery records and rate-limit keys are not granted to browser roles');
   await db.exec('GRANT USAGE ON SCHEMA campusbite_private TO anon; SET ROLE anon');
   await assert.rejects(db.exec('SELECT * FROM campusbite_private.password_resets'));
   await assert.rejects(db.exec('SELECT * FROM campusbite_private.recovery_limits'));
+  await assert.rejects(db.exec('SELECT * FROM campusbite_private.pending_registrations'));
   await db.exec('RESET ROLE; REVOKE USAGE ON SCHEMA campusbite_private FROM anon');
   check(true,'Anonymous access remains denied even if schema visibility is accidentally granted');
   // Test bucket metadata separately; this does not emulate the Supabase Storage API.
@@ -737,11 +738,74 @@ try {
     && (await registration('dashboard.php')).status===302,
     'Invalid CSRF, mismatched passwords and duplicate accounts cannot register or authenticate a visitor');
   const beforeSession=await registration('register.php');
-  const signedUp=await registration('register.php',{...signup,csrf_token:token(beforeSession.html),role_id:'1',role_name:'Administrator'});
+  const requestedSignup=await registration('register.php',{...signup,csrf_token:token(beforeSession.html),role_id:'1',role_name:'Administrator'});
+  const signupInbox=async()=> (await readFile(path.join(storageDir,'recovery-mail.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
+  const verificationMail=(await signupInbox()).at(-1);
+  const verificationToken=verificationMail.text.match(/verify_email\.php\?token=([a-f0-9]{64})/)[1];
+  const pendingSignup=(await db.query("SELECT token_hash,details FROM campusbite_private.pending_registrations WHERE email='newstudent@example.invalid'")).rows[0];
+  check(requestedSignup.status===200 && requestedSignup.html.includes('Your account will be created only after')
+    && Number((await db.query('SELECT COUNT(*) AS n FROM public.users')).rows[0].n)===beforeSignup
+    && (await registration('dashboard.php')).status===302
+    && pendingSignup.token_hash!==verificationToken && pendingSignup.details.password_hash!==signupPassword
+    && !JSON.stringify(pendingSignup).includes('role_id') && !verificationMail.text.includes(signupPassword),
+    'Registration sends a single-use link but creates no user or session; pending details contain only a password hash and no client-supplied role');
+  const repeatSignup=await registration('register.php',{...signup,csrf_token:token(beforeSession.html)});
+  check(repeatSignup.html.includes('Please wait before requesting another verification email') && (await signupInbox()).length===1,
+    'Verification resends have a one-minute cooldown without issuing another email');
+  const openedSignup=await registration('verify_email.php?token='+verificationToken);
+  let verificationPage=await registration('verify_email.php');
+  check(openedSignup.status===303 && openedSignup.location==='verify_email.php'
+    && verificationPage.html.includes('id="verification-password"') && !verificationPage.html.includes(verificationToken)
+    && !verificationPage.html.includes(pendingSignup.details.password_hash)
+    && Number((await db.query('SELECT COUNT(*) AS n FROM public.users')).rows[0].n)===beforeSignup,
+    'Email scanner GETs strip the token from the URL and never create an account or expose password hashes');
+  await db.query("UPDATE campusbite_private.pending_registrations SET expires_at=clock_timestamp()-INTERVAL '1 second'");
+  check(!(await registration('verify_email.php')).html.includes('id="verification-password"'), 'Expired verification links cannot offer account creation');
+  await db.query("UPDATE campusbite_private.pending_registrations SET expires_at=clock_timestamp()+INTERVAL '15 minutes'");
+  verificationPage=await registration('verify_email.php');
+  const failedCsrf=await registration('verify_email.php',{csrf_token:'invalid',password:signupPassword});
+  const wrongSignupPassword=await registration('verify_email.php',{csrf_token:token(verificationPage.html),password:'Wrong-Password9!'});
+  check(failedCsrf.html.includes('Your form expired') && wrongSignupPassword.html.includes('Enter the CampusBite password you chose')
+    && Number((await db.query('SELECT COUNT(*) AS n FROM public.users')).rows[0].n)===beforeSignup,
+    'Forged verification forms and possession of a link without the chosen CampusBite password cannot create an account');
+  const signedUp=await registration('verify_email.php',{csrf_token:token(verificationPage.html),password:signupPassword,role_id:'1'});
   const newStudent=(await db.query("SELECT user_id,role_id,is_active,password_hash FROM public.users WHERE email='newstudent@example.invalid'")).rows[0];
   check(signedUp.status===303 && signedUp.location==='dashboard.php' && Number(newStudent.role_id)===3 && Number(newStudent.is_active)===1
     && newStudent.password_hash!==signupPassword,
-    'Successful registration creates only an active student with a hashed password and redirects directly to the dashboard');
+    'Verified registration creates only an active student with a hashed password and redirects directly to the dashboard');
+  const replayClient=client();
+  await replayClient('verify_email.php?token='+verificationToken);
+  check(!(await replayClient('verify_email.php')).html.includes('id="verification-password"')
+    && (await db.query("SELECT 1 FROM campusbite_private.pending_registrations WHERE email='newstudent@example.invalid'")).rows.length===0,
+    'A completed verification link cannot be replayed, and its temporary registration details are deleted');
+  const resend=client();
+  const resendPage=await resend('register.php');
+  const resendDetails={...signup,csrf_token:token(resendPage.html),id_number:'FIXTURE-RESEND',email:'resend@example.invalid'};
+  await resend('register.php',resendDetails);
+  const oldVerification=(await signupInbox()).at(-1).text.match(/verify_email\.php\?token=([a-f0-9]{64})/)[1];
+  await db.query("UPDATE campusbite_private.recovery_limits SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE limit_key=$1",
+    [createHmac('sha256',sessionSecret).update('recovery:signup-cooldown:resend@example.invalid').digest('hex')]);
+  await resend('register.php',resendDetails);
+  const latestVerification=(await signupInbox()).at(-1).text.match(/verify_email\.php\?token=([a-f0-9]{64})/)[1];
+  await resend('verify_email.php?token='+oldVerification);
+  const stalePage=await resend('verify_email.php');
+  await resend('verify_email.php?token='+latestVerification);
+  const latestPage=await resend('verify_email.php');
+  check(!stalePage.html.includes('id="verification-password"') && latestPage.html.includes('id="verification-password"'),
+    'A resend invalidates the previous verification link and retains only the latest pending request');
+  await db.query("UPDATE campusbite_private.pending_registrations SET details=jsonb_set(details,'{id_number}',to_jsonb('FIXTURE-STUDENT'::text)) WHERE email='resend@example.invalid'");
+  const raced=await resend('verify_email.php',{csrf_token:token(latestPage.html),password:signupPassword});
+  check(raced.html.includes('already registered') && (await db.query("SELECT 1 FROM public.users WHERE email='resend@example.invalid'")).rows.length===0,
+    'Duplicate IDs claimed while verification is pending cannot create a second account');
+  const mailbox=path.join(storageDir,'recovery-mail.jsonl');
+  const savedMailbox=await readFile(mailbox);
+  await rm(mailbox); await mkdir(mailbox);
+  const deliveryFailure=await resend('register.php',{...resendDetails,email:'failed-signup@example.invalid',id_number:'FIXTURE-SENDFAIL',csrf_token:token((await resend('register.php')).html)});
+  await rm(mailbox,{recursive:true}); await writeFile(mailbox,savedMailbox);
+  check(deliveryFailure.html.includes('We could not send the verification email')
+    && (await db.query("SELECT 1 FROM campusbite_private.pending_registrations WHERE email='failed-signup@example.invalid'")).rows.length===0
+    && (await db.query("SELECT 1 FROM public.users WHERE email='failed-signup@example.invalid'")).rows.length===0,
+    'Failed email delivery removes the unsent pending request and never creates a user account');
   check(signedUp.sessionCookie!==beforeSession.sessionCookie
     && (await client(beforeSession.sessionCookie)('dashboard.php')).status===302,
     'Automatic sign-in rotates the session ID and leaves the old anonymous cookie unauthenticated');
@@ -948,6 +1012,10 @@ try {
   await db.query('UPDATE stores SET opens_at=$1,closes_at=$2 WHERE store_id=1',[previousHours.opens_at,previousHours.closes_at]);
   const switchSignup=await separateCarts('register.php');
   await separateCarts('register.php',{...signup,csrf_token:token(switchSignup.html),id_number:'FIXTURE-SWITCH',email:'switch@example.invalid',first_name:'Switch'});
+  const switchToken=(await signupInbox()).at(-1).text.match(/verify_email\.php\?token=([a-f0-9]{64})/)[1];
+  await separateCarts('verify_email.php?token='+switchToken);
+  const switchVerify=await separateCarts('verify_email.php');
+  await separateCarts('verify_email.php',{csrf_token:token(switchVerify.html),password:signupPassword});
   const switchedCart=await separateCarts('cart.php');
   check(switchedCart.status===200 && switchedCart.html.includes('Your cart is empty for now')
     && !switchedCart.html.includes('data-cart-store="1"') && !switchedCart.html.includes('data-cart-store="2"')
@@ -1272,6 +1340,7 @@ try {
     try {return (await readFile(path.join(storageDir,'recovery-mail.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}
     catch(error) {if(error.code==='ENOENT') return []; throw error;}
   };
+  await rm(path.join(storageDir,'recovery-mail.jsonl'));
   const recovery=client();
   const recoveryPage=await recovery('forgot_password.php');
   check(recoveryPage.status===200 && (await client()('login.php')).html.includes('href="forgot_password.php"')

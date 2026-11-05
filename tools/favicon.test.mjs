@@ -58,7 +58,7 @@ test('Every HTML page head uses the shared favicon links', async () => {
     assert.match(head[1], /require __DIR__ \. '\/components\/favicon\.php'/, file);
     heads++;
   }
-  assert.equal(heads, 18);
+  assert.equal(heads, 19);
   const result = spawnSync(process.env.PHP_BINARY || 'C:/xampp/php/php.exe',
     ['app/components/favicon.php'], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);

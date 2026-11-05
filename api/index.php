@@ -7,13 +7,13 @@ $allowed=['index.php','login.php','register.php','logout.php','dashboard.php','m
     'cart.php','checkout.php','orders.php','profile.php','staff_dashboard.php','staff_menu.php',
     'staff_profile.php','admin_dashboard.php','admin_users.php','admin_stores.php','admin_categories.php',
     'admin_profile.php','favorites.php','profile_photo.php','payment_receipt.php','submit_payment.php','order_notifications.php',
-    'forgot_password.php','reset_password.php'];
+    'forgot_password.php','reset_password.php','verify_email.php'];
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
 $contentPolicy = "form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
 // These pages use only local executable scripts and same-origin live requests.
-if (in_array($route, ['login.php', 'register.php', 'dashboard.php'], true)) {
+if (in_array($route, ['login.php', 'register.php', 'dashboard.php', 'verify_email.php'], true)) {
     $contentPolicy .= "; script-src 'self'; connect-src 'self'; frame-src 'none'";
 }
 header('Content-Security-Policy: ' . $contentPolicy);

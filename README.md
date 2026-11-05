@@ -8,6 +8,30 @@ The XAMPP application remains unchanged in `C:/xampp/htdocs/campusbite`.
 `app/` is the isolated, converted application. No user database records,
 password hashes, food uploads, or payment receipts have been copied.
 
+### Registration email verification (2026-11-05)
+
+Apply `supabase/migrations/20261105153855_registration_email_verification.sql`
+before deploying the email-verification registration flow. It creates one private,
+RLS-protected pending-request table; it does not change existing accounts.
+
+New student registrations send a single-use 15-minute email link through the
+existing SMTP settings. No public user row or authenticated session is created
+until the link holder confirms the CampusBite password chosen in registration.
+GET requests never create accounts, so email link scanners cannot complete signup.
+Successful verification creates only a Student, rotates the session and signs in.
+The confirmation works in a different browser too, with the link and chosen password.
+
+Pending requests contain account details and a password hash, never the plaintext
+password or raw link token. Successful requests are deleted; expired requests are
+rejected immediately and pruned on subsequent registration requests. Resending
+replaces the previous link. Mail failures remove the undelivered request.
+Limits are separate from password recovery: one email/minute, five/email/hour,
+20/source address/hour, 100 globally/day; confirmation allows ten/token/15 minutes
+and 30/source address/hour. Source-address limits may be shared behind a proxy.
+Existing login, password recovery and admin-created store accounts are unchanged.
+This verifies mailbox access, not a person's identity or school enrollment.
+Later profile-email changes are not covered by this registration-only feature.
+
 ### Account removal
 
 Apply `supabase/migrations/20261104194555_archive_accounts.sql` before deploying
