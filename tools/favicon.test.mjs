@@ -68,7 +68,7 @@ test('Every HTML page head uses the shared favicon links', async () => {
   assert.match(result.stdout, /rel="manifest" href="manifest\.webmanifest\?v=\d+"/);
 });
 
-test('The web app manifest uses opaque home-screen icons of the declared sizes', async () => {
+test('The manifest separates rounded desktop icons from opaque mobile maskable icons', async () => {
   const manifest = JSON.parse((await read('app/manifest.webmanifest')).toString());
   assert.equal(manifest.name, 'CampusBite');
   assert.equal(manifest.start_url, 'dashboard.php');
@@ -79,13 +79,13 @@ test('The web app manifest uses opaque home-screen icons of the declared sizes',
     assert.deepEqual(png.subarray(0, 8), pngSignature, icon.src);
     assert.equal(png.readUInt32BE(16), size, icon.src);
     assert.equal(png.readUInt32BE(20), size, icon.src);
-    // Colour type 2 is RGB without alpha, so launchers never show a transparent or black background.
-    assert.equal(png[25], 2, icon.src);
+    // Desktop icons need alpha for rounded edges; maskable icons must fill the launcher mask.
+    assert.equal(png[25], icon.purpose === 'maskable' ? 2 : 6, icon.src);
   }
 });
 
 test('The static build publishes all icons and the manifest unchanged', async () => {
-  for (const file of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
+  for (const file of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'manifest.webmanifest']) {
     assert.deepEqual(await read('public/' + file), await read('app/' + file), file);
   }
 });

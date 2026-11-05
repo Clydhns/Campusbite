@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Render every icon from the same artwork used by the shared website header.
-// The logo sits on an opaque peach tile inside the maskable safe zone, so iOS and Android can round or mask it.
+// Desktop icons have transparent rounded corners; mobile maskable icons retain a full safe-zone background.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const chrome = process.env.CHROME_BINARY || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const artwork = await readFile(path.join(root, 'app/assets/campusbite-logo.svg'), 'utf8');
@@ -14,12 +14,14 @@ const work = await mkdtemp(path.join(tmpdir(), 'campusbite-icons-'));
 try {
   const embedded = artwork.replace('<svg ', '<svg x="3" y="3" width="58" height="58" ');
   await writeFile(path.join(root, 'app/favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title"><title id="title">CampusBite CB logo</title><rect width="64" height="64" rx="14" fill="#fff3e8"/>${embedded}</svg>\n`);
-  for (const [file, size] of [['favicon-32.png', 32], ['assets/campusbite-email.png', 128], ['apple-touch-icon.png', 180], ['icon-192.png', 192], ['icon-512.png', 512]]) {
-    const page = path.join(work, size + '.html');
-    await writeFile(page, `<!doctype html><html><body style="margin:0;width:${size}px;height:${size}px;display:grid;place-items:center;background:#fff3e8">
-<img src="data:image/svg+xml;base64,${logo}" style="width:${size<=128 ? 92 : 62}%;height:${size<=128 ? 92 : 62}%" alt=""></body></html>`);
+  for (const [file, size] of [['favicon-32.png', 32], ['assets/campusbite-email.png', 128], ['apple-touch-icon.png', 180], ['icon-192.png', 192], ['icon-512.png', 512], ['icon-maskable-512.png', 512]]) {
+    const rounded = file === 'favicon-32.png' || /^icon-(192|512)\.png$/.test(file);
+    const page = path.join(work, path.basename(file) + '.html');
+    await writeFile(page, `<!doctype html><html><body style="margin:0;width:${size}px;height:${size}px;background:transparent">
+<div style="width:100%;height:100%;display:grid;place-items:center;background:#fff3e8;border-radius:${rounded ? '24%' : '0'};overflow:hidden">
+<img src="data:image/svg+xml;base64,${logo}" style="width:${size<=128 ? 92 : 62}%;height:${size<=128 ? 92 : 62}%" alt=""></div></body></html>`);
     const output = path.join(work, path.basename(file));
-    const result = spawnSync(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
+    const result = spawnSync(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1', ...(rounded ? ['--default-background-color=00000000'] : []),
       '--user-data-dir=' + path.join(work, 'profile'), '--window-size=' + size + ',' + size, '--screenshot=' + output, pathToFileURL(page).href],
       { stdio: 'ignore', timeout: 60000, windowsHide: true });
     if (result.status !== 0) throw new Error('Chrome could not render ' + file + '. Set CHROME_BINARY to override.');
