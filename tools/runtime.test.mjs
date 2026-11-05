@@ -147,6 +147,12 @@ try {
     && loginView.includes('class="cb-project-identity"') && loginView.includes('Not an official school portal.')
     && registerView.includes('auth-project-note') && registerView.includes('index.php#data-use'),
     'Direct login shows a compact project identity and data-use link while preserving password guidance and registration disclosure');
+  const identityStyles=await readFile(path.join(root,'app/brand.css'),'utf8');
+  check(loginView.includes('CampusBite is an independent student project.')
+    && loginView.includes('Project details and data use <span aria-hidden="true">&rarr;</span>')
+    && /\.cb-project-identity a \{[^}]*color:#684632;[^}]*text-decoration:none;/.test(identityStyles)
+    && /\.cb-project-identity a:focus-visible \{[^}]*outline:2px solid #684632;/.test(identityStyles),
+    'Project disclosure uses clearer copy and a muted, non-underlined details link with a visible keyboard-focus outline');
   const lockedPolicy = page => ["script-src 'self'", "connect-src 'self'", "frame-src 'none'"]
     .every(directive => page.csp?.includes(directive)) && !page.csp.includes("'unsafe-inline'") && !page.csp.includes("'unsafe-eval'");
   check(lockedPolicy(publicLogin) && lockedPolicy(await anon('register.php')),

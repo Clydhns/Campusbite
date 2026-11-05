@@ -1,1 +1,1 @@
-<p class="cb-project-identity"><strong>Independent student project.</strong> Not an official school portal. <a href="index.php#data-use">About CampusBite and data use</a>.</p>
+<p class="cb-project-identity"><strong>CampusBite is an independent student project.</strong> Not an official school portal. <a href="index.php#data-use">Project details and data use <span aria-hidden="true">&rarr;</span></a></p>
