@@ -121,6 +121,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
     <link rel="stylesheet" href="admin-profile.css?v=1">
     <link rel="stylesheet" href="staff-account.css?v=<?= (int) filemtime(__DIR__ . '/staff-account.css') ?>">
     <link rel="stylesheet" href="staff-navbar.css?v=<?= (int) filemtime(__DIR__ . '/staff-navbar.css') ?>">
+    <script src="recovery.js?v=<?= (int) filemtime(__DIR__ . '/recovery.js') ?>" defer></script>
 </head>
 <body class="cb-student">
 <?php require __DIR__ . '/components/staff-navbar.php'; ?>
@@ -140,7 +141,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
         <aside class="profile-card profile-summary">
             <div class="profile-initial" aria-hidden="true"><?= profileEscape(strtoupper(substr($profile["first_name"], 0, 1))) ?></div>
             <h2><?= profileEscape($profile["first_name"] . " " . $profile["last_name"]) ?></h2>
-            <p>Canteen Staff</p>
+            <p>Store Owner</p>
             <dl>
                 <dt>Account ID</dt><dd><?= profileEscape($profile["id_number"]) ?></dd>
                 <dt>Email</dt><dd><?= profileEscape($profile["email"]) ?></dd>
@@ -158,7 +159,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
                     <div><label for="profile-email">Email</label><input id="profile-email" type="email" name="email" autocomplete="email" maxlength="100" aria-describedby="profile-email-help" required value="<?= profileEscape($values["email"]) ?>"><p class="profile-note" id="profile-email-help">Use a verified email account that you own and can access.</p></div>
                     <div><label for="contact-number">Contact number <span>(optional)</span></label><input id="contact-number" type="tel" name="contact_number" autocomplete="tel" maxlength="15" value="<?= profileEscape($values["contact_number"]) ?>"></div>
                 </div>
-                <div class="profile-password"><label for="current-password">Current password</label><input id="current-password" type="password" name="current_password" autocomplete="current-password" required></div>
+                <div class="profile-password"><label for="current-password">Current password</label><div class="staff-password-control"><input id="current-password" type="password" name="current_password" autocomplete="current-password" required><?php $passwordFieldId = 'current-password'; require __DIR__ . '/components/password-eye.php'; ?></div></div>
                 <div class="profile-actions"><button class="btn" type="submit">Save changes</button><a class="btn btn-secondary" href="staff_menu.php?view=settings">Back to Store Profile</a></div>
             </form>
         <details class="cb-store-password" id="change-password" <?= $passwordError !== '' || $passwordSuccess !== '' ? 'open' : '' ?>>
@@ -168,7 +169,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST['action'] ?? '') !== 'chang
             <?php if ($passwordSuccess !== ''): ?><p class="success-message" role="status"><?= profileEscape($passwordSuccess) ?></p><?php endif; ?>
             <form method="POST" action="staff_profile.php#change-password" class="cb-store-password-form">
                 <input type="hidden" name="action" value="change_password"><input type="hidden" name="csrf_token" value="<?= profileEscape($passwordToken) ?>">
-                <div class="staff-password-current"><label for="account-current-password">Current password</label><input id="account-current-password" name="current_password" type="password" autocomplete="current-password" required></div>
+                <div class="staff-password-current"><label for="account-current-password">Current password</label><div class="staff-password-control"><input id="account-current-password" name="current_password" type="password" autocomplete="current-password" required><?php $passwordFieldId = 'account-current-password'; require __DIR__ . '/components/password-eye.php'; ?></div></div>
                 <div><label for="account-new-password">New password</label><input id="account-new-password" name="new_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" aria-describedby="account-password-help" required></div>
                 <div><label for="account-confirm-password">Confirm new password</label><input id="account-confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
                 <p class="profile-note" id="account-password-help">At least 8 characters, up to 72 bytes. Choose a unique password different from your current one.</p>

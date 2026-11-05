@@ -6,4 +6,15 @@
 .cb-store-password-form > div { min-width:0; }
 .cb-store-password-form > .staff-password-current,.cb-store-password-form > p,.cb-store-password-form > .profile-actions { grid-column:1 / -1; }
 .cb-store-password-form > p,.cb-store-password-form > .profile-actions { margin:0; }
+.staff-password-control { position:relative; }
+.staff-password-control input { padding-right:58px; }
+.staff-password-control .staff-password-toggle {
+    position:absolute; right:5px; top:50%; transform:translateY(-50%);
+    display:grid; place-items:center; width:44px; height:44px; padding:0;
+    border:0; border-radius:10px; background:transparent; color:#684632; cursor:pointer;
+}
+.staff-password-control .staff-password-toggle:hover { background:#fff0df; color:#a61f2e; }
+.staff-password-control .staff-password-toggle:focus-visible { outline:2px solid #a61f2e; outline-offset:2px; }
+.staff-password-toggle .recovery-eye-slash { display:none; }
+.staff-password-toggle[aria-pressed="true"] .recovery-eye-slash { display:block; }
 @media(max-width:540px) { .cb-store-password-form { grid-template-columns:minmax(0,1fr); } }

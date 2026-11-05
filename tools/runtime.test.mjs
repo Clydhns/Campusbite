@@ -1150,6 +1150,12 @@ try {
   check(!storeSettings.html.includes('value="change_password"') && !storeSettings.html.includes('cb-store-password-form'),
     'Store Profile contains store settings only, without a password form');
   const securityPage=await staff('staff_profile.php');
+  check(securityPage.html.includes('<p>Store Owner</p>') && !securityPage.html.includes('<p>Canteen Staff</p>')
+    && securityPage.html.includes('aria-controls="current-password"')
+    && securityPage.html.includes('aria-controls="account-current-password"')
+    && (securityPage.html.match(/data-recovery-toggle\s/g) || []).length===2
+    && securityPage.html.includes('src="recovery.js?v='),
+    'Store Owner label and independent non-submitting eye buttons are present on both current-password fields');
   check(securityPage.html.includes('aria-describedby="profile-email-help"')
     && securityPage.html.includes('Use a verified email account that you own and can access.')
     && !securityPage.html.includes('Password reset links will be sent to this address'),
